@@ -234,12 +234,12 @@
 
 .puja-card__prices {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.65rem;
 }
 
 .puja-card__price {
-  display: grid;
+  display: flex;
   gap: 0.25rem;
   text-align: center;
   padding: 0.65rem 0.4rem;
@@ -249,7 +249,6 @@
 
 .puja-card__price span {
   font-family: var(--font-display);
-  font-size: 0.62rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--sand);
@@ -388,8 +387,17 @@
 }
 
 @media (max-width: 520px) {
+
+  .welcome{
+    min-height: 70dvh;
+    align-items: center;
+  }
   .pujas-top__logo {
     width: min(40vw, 9rem);
+  }
+
+  .pujas-search{
+    flex: 1 1 1rem;
   }
 
   .pujas-toolbar {

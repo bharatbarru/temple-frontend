@@ -39,31 +39,16 @@ function PujaCard({ puja, index, onAdd }) {
       <h2 className="puja-card__name">{puja.name}</h2>
 
       <div className="puja-card__prices">
-        <div className={`puja-card__price ${!homeOk ? 'is-disabled' : ''}`}>
-          <span>Home</span>
-          <strong>{formatAmount(puja.home_amount)}</strong>
-        </div>
         <div className={`puja-card__price ${!templeOk ? 'is-disabled' : ''}`}>
-          <span>Temple</span>
+          <span>Price: </span>
           <strong>{formatAmount(puja.temple_amount)}</strong>
         </div>
       </div>
-
+      
       {(homeOk || templeOk) && (
         <fieldset className="puja-card__location">
           <legend className="visually-hidden">Booking location</legend>
-          {homeOk && (
-            <label className={location === 'home' ? 'is-active' : ''}>
-              <input
-                type="radio"
-                name={`loc-${puja.id}`}
-                value="home"
-                checked={location === 'home'}
-                onChange={() => setLocation('home')}
-              />
-              Book at home
-            </label>
-          )}
+          
           {templeOk && (
             <label className={location === 'temple' ? 'is-active' : ''}>
               <input
@@ -191,7 +176,7 @@ export default function Pujas() {
           <p className="pujas-hero__eyebrow">Sacred offerings</p>
           <h1 className="pujas-hero__title">Explore Puja</h1>
           <p className="pujas-hero__lede">
-            Choose home or temple booking, then add pujas to your cart.
+            Choose temple booking, then add pujas to your cart.
           </p>
         </header>
 
