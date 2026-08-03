@@ -40,6 +40,15 @@ function todayISO() {
   return `${y}-${m}-${day}`
 }
 
+function getNextDayISO(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + 1)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getAvailableSlots(dateStr) {
   if (!dateStr) return TIME_SLOTS
 
@@ -180,25 +189,26 @@ function PaypalCheckout({
             const paypalOrderId = data.orderID || details?.id
             const paypal = buildPaypalPaymentPayload(details, paypalOrderId, amount)
 
-            // Only after successful payment: create order, then mark paid with PayPal details
-            const created = await submitPujaOrder(orderPayload)
-            const pujaRequestId = created?.data?.puja_request_id || ''
-
-            const successBody = {
-              puja_request_id: pujaRequestId,
-              email,
-              ...paypal,
-            }
-            // Helps you verify exact payload in browser DevTools → Console
-            console.info('[paypal-success payload]', successBody)
-
-            const confirmed = await confirmPaypalSuccess({
-              pujaRequestId,
-              email,
+            // Submit the order as soon as PayPal capture succeeds.
+            // The order payload now carries the PayPal fields too, which lets the
+            // backend receive everything in one round-trip where possible.
+            const created = await submitPujaOrder({
+              ...orderPayload,
               paypal,
             })
+            const pujaRequestId = created?.data?.puja_request_id || ''
 
-            onPaid(confirmed, pujaRequestId)
+            if (!pujaRequestId) {
+              const confirmed = await confirmPaypalSuccess({
+                pujaRequestId,
+                email,
+                paypal,
+              })
+              onPaid(confirmed, pujaRequestId)
+              return
+            }
+
+            onPaid(created, pujaRequestId)
           } catch (err) {
             onError(err.message || 'PayPal payment confirmation failed.')
           } finally {
@@ -232,6 +242,7 @@ export default function Checkout() {
   const empty = count === 0
   const locationMixed = bookingLocation === 'mixed'
   const minDate = todayISO()
+  const minAlternateDate = form.dateOfPuja ? getNextDayISO(form.dateOfPuja) : minDate
   const paypalClientId = getPaypalClientId()
   const paypalCurrency = getPaypalCurrency()
 
@@ -259,6 +270,13 @@ export default function Checkout() {
     }
   }, [form.alternateDate, form.alternateTime, alternateSlots])
 
+  useEffect(() => {
+    if (!form.dateOfPuja || !form.alternateDate) return
+    if (form.alternateDate <= form.dateOfPuja) {
+      setForm((prev) => ({ ...prev, alternateDate: '', alternateTime: '' }))
+    }
+  }, [form.dateOfPuja, form.alternateDate])
+
   const summaryLines = useMemo(
     () =>
       items.map((item) => ({
@@ -270,9 +288,15 @@ export default function Checkout() {
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target
+    let nextValue = type === 'checkbox' ? checked : value
+
+    if (name === 'mobile' || name === 'pincode') {
+      nextValue = value.replace(/\D/g, '').slice(0, name === 'mobile' ? 15 : 10)
+    }
+
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: nextValue,
     }))
   }
 
@@ -281,10 +305,25 @@ export default function Checkout() {
     if (!form.firstName.trim()) next.firstName = 'Required'
     if (!form.lastName.trim()) next.lastName = 'Required'
     if (!form.mobile.trim()) next.mobile = 'Required'
+    else if (!/^\d{10,15}$/.test(form.mobile)) next.mobile = 'Contact number must contain 10–15 digits'
     if (!form.email.trim()) next.email = 'Required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) next.email = 'Invalid email'
     if (!form.dateOfPuja) next.dateOfPuja = 'Required'
     if (!form.timeOfPuja) next.timeOfPuja = 'Required'
+    if (form.pincode && !/^\d{4,10}$/.test(form.pincode)) {
+      next.pincode = 'Pincode must contain 4–10 digits'
+    }
+    if (form.alternateDate && !form.dateOfPuja) {
+      next.alternateDate = 'Choose the preferred date first'
+    } else if (form.alternateDate && form.alternateDate <= form.dateOfPuja) {
+      next.alternateDate = 'Alternate date must be after the preferred date'
+    } else if (form.alternateDate && !form.alternateTime) {
+      next.alternateTime = 'Choose a time for the alternate date'
+    }
+    if (form.alternateTime && !form.alternateDate) {
+      next.alternateDate = 'Select an alternate date first'
+    }
+    if (!form.agree) next.agree = 'Please agree to the terms and conditions'
     if (empty) next.cart = 'Add at least one puja'
     if (locationMixed) {
       next.cart =
@@ -541,6 +580,7 @@ export default function Checkout() {
                         placeholder="First Name *"
                         autoComplete="given-name"
                       />
+                      {errors.firstName && <p className="field-error">{errors.firstName}</p>}
                     </label>
                     <label className={errors.lastName ? 'has-error' : ''}>
                       <span className="visually-hidden">Last Name</span>
@@ -551,6 +591,7 @@ export default function Checkout() {
                         placeholder="Last Name *"
                         autoComplete="family-name"
                       />
+                      {errors.lastName && <p className="field-error">{errors.lastName}</p>}
                     </label>
                     <label className={errors.mobile ? 'has-error' : ''}>
                       <span className="visually-hidden">Contact No</span>
@@ -560,7 +601,10 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="Contact No *"
                         autoComplete="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                       />
+                      {errors.mobile && <p className="field-error">{errors.mobile}</p>}
                     </label>
                     <label className={errors.email ? 'has-error' : ''}>
                       <span className="visually-hidden">Email</span>
@@ -572,6 +616,7 @@ export default function Checkout() {
                         placeholder="Email *"
                         autoComplete="email"
                       />
+                      {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
                     <label className="puja-form__full">
                       <span className="visually-hidden">Address</span>
@@ -613,7 +658,7 @@ export default function Checkout() {
                         autoComplete="address-level2"
                       />
                     </label>
-                    <label>
+                    <label className={errors.pincode ? 'has-error' : ''}>
                       <span className="visually-hidden">Pincode</span>
                       <input
                         name="pincode"
@@ -621,12 +666,16 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="Pincode"
                         autoComplete="postal-code"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                       />
+                      {errors.pincode && <p className="field-error">{errors.pincode}</p>}
                     </label>
                   </div>
 
                   <div className="puja-form__availability">
-                    <h3>Check Puja Availability</h3>
+                    <a href="https://www.trumba.com/calendars/private-pujas?type=Puja" target='_blank'>
+                    <h3>Check Puja Availability</h3></a>
                     <div className="puja-form__grid">
                       <label className={errors.dateOfPuja ? 'has-error' : ''}>
                         <span className="field-label">Date of Puja *</span>
@@ -638,6 +687,7 @@ export default function Checkout() {
                           min={minDate}
                           required
                         />
+                        {errors.dateOfPuja && <p className="field-error">{errors.dateOfPuja}</p>}
                       </label>
                       <label className={errors.timeOfPuja ? 'has-error' : ''}>
                         <span className="field-label">Time of Puja *</span>
@@ -660,18 +710,20 @@ export default function Checkout() {
                             No upcoming slots left for this date.
                           </span>
                         )}
+                        {errors.timeOfPuja && <p className="field-error">{errors.timeOfPuja}</p>}
                       </label>
-                      <label>
+                      <label className={errors.alternateDate ? 'has-error' : ''}>
                         <span className="field-label">Alternate Date of Puja</span>
                         <input
                           type="date"
                           name="alternateDate"
                           value={form.alternateDate}
                           onChange={onChange}
-                          min={minDate}
+                          min={minAlternateDate}
                         />
+                        {errors.alternateDate && <p className="field-error">{errors.alternateDate}</p>}
                       </label>
-                      <label>
+                      <label className={errors.alternateTime ? 'has-error' : ''}>
                         <span className="field-label">Alternative Time of Puja</span>
                         <select
                           className="theme-select"
@@ -686,6 +738,7 @@ export default function Checkout() {
                             </option>
                           ))}
                         </select>
+                        {errors.alternateTime && <p className="field-error">{errors.alternateTime}</p>}
                       </label>
                     </div>
                   </div>
@@ -701,7 +754,7 @@ export default function Checkout() {
                     />
                   </label>
 
-                  <label className="puja-form__agree">
+                  <label className={`puja-form__agree${errors.agree ? ' has-error' : ''}`}>
                     <input
                       type="checkbox"
                       name="agree"
@@ -710,6 +763,7 @@ export default function Checkout() {
                     />
                     <span>I Agree to the terms and conditions</span>
                   </label>
+                  {errors.agree && <p className="field-error">{errors.agree}</p>}
 
                   {submitError && (
                     <p className="field-error" role="alert">
