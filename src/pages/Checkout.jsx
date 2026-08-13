@@ -1,6 +1,6 @@
 import { PayPalButtons, PayPalScriptProvider } from '@paypal/react-paypal-js'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   buildPaypalPaymentPayload,
   buildPujaOrderPayload,
@@ -229,6 +229,7 @@ function PaypalCheckout({
 export default function Checkout() {
   const { items, total, count, bookingLocation, removeItem, updateQuantity, clearCart } =
     useCart()
+  const navigate = useNavigate()
   const [form, setForm] = useState(INITIAL_FORM)
   const [requestId, setRequestId] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -422,18 +423,26 @@ export default function Checkout() {
       </div>
 
       <header className="checkout-top">
-        <Link to="/pujas" className="checkout-top__back">
-          ← Pujas
-        </Link>
-        <img
-          className="checkout-top__logo"
-          src={LOGO}
-          alt="Hindu Temple Omaha, NE"
-          width={320}
-          height={110}
-        />
-        <span className="checkout-top__spacer" aria-hidden="true" />
+        <button
+          type="button"
+          className="checkout-top__logo-btn"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+        >
+          <img
+            className="checkout-top__logo"
+            src={LOGO}
+            alt="Hindu Temple Omaha, NE"
+            width={320}
+            height={110}
+          />
+        </button>
       </header>
+
+      <Link to="/checkout" className="checkout-top__cart" aria-label={`Open cart (${count})`}>
+        <i className="fa-solid fa-cart-shopping" aria-hidden="true" />
+        {count > 0 && <span className="checkout-top__cart-badge">{count}</span>}
+      </Link>
 
       <main className="checkout-main">
         <header className="checkout-hero">

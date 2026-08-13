@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { formatAmount, getPujasUrl, hasAmount } from '../api'
 import { useCart } from '../cart'
@@ -81,6 +81,9 @@ function PujaCard({ puja, index, onAdd }) {
 
 export default function Pujas() {
   const { addItem, count } = useCart()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalMessage, setModalMessage] = useState('')
+  const modalCloseRef = useRef(null)
   const [pujas, setPujas] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
@@ -142,6 +145,34 @@ export default function Pujas() {
     return () => observer.disconnect()
   }, [status, pujas, query])
 
+  useEffect(() => {
+    if (modalOpen && modalCloseRef.current) modalCloseRef.current.focus()
+  }, [modalOpen])
+
+  function showModal(msg) {
+    setModalMessage(msg)
+    setModalOpen(true)
+  }
+
+  function closeModal() {
+    setModalOpen(false)
+    setModalMessage('')
+  }
+
+  function handleAddWrapper(puja, location) {
+    const res = addItem(puja, location)
+    if (res && res.ok === true) return true
+    if (res?.reason === 'single') {
+      showModal('Currently you can book 1 puja for this session')
+      return false
+    }
+    if (res?.reason === 'no-amount') {
+      showModal('This puja does not have a valid amount.')
+      return false
+    }
+    return false
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return pujas
@@ -156,9 +187,6 @@ export default function Pujas() {
       </div>
 
       <header className="pujas-top">
-        <Link to="/" className="pujas-top__back">
-          ← Home
-        </Link>
         <img
           className="pujas-top__logo"
           src={LOGO}
@@ -166,15 +194,15 @@ export default function Pujas() {
           width={320}
           height={110}
         />
-        <Link to="/checkout" className="pujas-top__cart">
-          Cart{count > 0 ? ` (${count})` : ''}
+        <Link to="/checkout" className="pujas-top__cart" aria-label={`Open cart (${count})`}>
+          <i className="fa-solid fa-cart-shopping" aria-hidden="true" />
+          {count > 0 && <span className="pujas-top__cart-badge">{count}</span>}
         </Link>
       </header>
 
       <main className="pujas-main pujas-main--wide">
         <header className="pujas-hero is-revealed">
-          <p className="pujas-hero__eyebrow">Sacred offerings</p>
-          <h1 className="pujas-hero__title">Explore Puja</h1>
+          <h1 className="pujas-hero__title">Pujas</h1>
           <p className="pujas-hero__lede">
             Choose temple booking, then add pujas to your cart.
           </p>
@@ -216,7 +244,7 @@ export default function Pujas() {
 
             <div className="puja-grid">
               {filtered.map((puja, index) => (
-                <PujaCard key={puja.id} puja={puja} index={index} onAdd={addItem} />
+                <PujaCard key={puja.id} puja={puja} index={index} onAdd={handleAddWrapper} />
               ))}
             </div>
 
@@ -224,16 +252,31 @@ export default function Pujas() {
               <p className="pujas-message">No pujas match your search.</p>
             )}
 
-            {count > 0 && (
-              <div className="pujas-checkout-bar">
-                <Link to="/checkout" className="pujas-checkout-bar__btn">
-                  Go to checkout ({count})
-                </Link>
-              </div>
-            )}
+            {/* Checkout bar removed — cart is accessible via floating cart icon */}
           </>
         )}
       </main>
+      {modalOpen && (
+        <div
+          className="puja-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeModal}
+        >
+          <div className="puja-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="puja-modal__message">{modalMessage}</p>
+            <div className="puja-modal__actions">
+              <button
+                ref={modalCloseRef}
+                className="puja-modal__close"
+                onClick={closeModal}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

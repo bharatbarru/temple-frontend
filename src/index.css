@@ -1,15 +1,15 @@
 :root {
-  --stone-deep: #1c1714;
-  --stone-mid: #3d3229;
-  --sand: #c9b896;
-  --saffron: #d4a04a;
+  --stone-deep: #f3eee4;
+  --stone-mid: #efe6d8;
+  --sand: #000000;
+  --saffron: #ae0000;
   --flame: #f0b24a;
   --temple-red: #9b1c1c;
   --temple-red-deep: #6e1212;
-  --mist: #e8e4dc;
-  --parchment: #f3eee4;
+  --mist: #000000;
+  --parchment: #f8f6f2;
   --ink: #241c18;
-  --smoke: rgba(232, 228, 220, 0.12);
+  --smoke: rgba(36, 28, 24, 0.06);
   --font-display: 'Cinzel', Georgia, serif;
   --font-body: 'Outfit', sans-serif;
 }
@@ -34,8 +34,8 @@ body,
 
 body {
   font-family: var(--font-body);
-  color: var(--mist);
-  background: var(--stone-deep);
+  color: var(--ink);
+  background: var(--parchment);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
