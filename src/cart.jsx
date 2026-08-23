@@ -31,7 +31,6 @@ export function CartProvider({ children }) {
 
       // enforce single-puja cart if not allowed multiple different pujas
       const key = `${puja.id}-${location}`
-      const existing = items.find((it) => it.key === key)
       if (!allowMultiple) {
         if (items.length > 0) {
           // if adding same item, allow incrementing quantity
@@ -68,16 +67,6 @@ export function CartProvider({ children }) {
       setItems((prev) => prev.filter((item) => item.key !== key))
     }
 
-    const updateQuantity = (key, quantity) => {
-      setItems((prev) =>
-        prev
-          .map((item) =>
-            item.key === key ? { ...item, quantity: Math.max(0, quantity) } : item,
-          )
-          .filter((item) => item.quantity > 0),
-      )
-    }
-
     const clearCart = () => setItems([])
 
     const count = items.reduce((sum, item) => sum + item.quantity, 0)
@@ -96,7 +85,6 @@ export function CartProvider({ children }) {
       bookingLocation,
       addItem,
       removeItem,
-      updateQuantity,
       clearCart,
     }
   }, [items])
