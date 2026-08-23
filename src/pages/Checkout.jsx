@@ -13,11 +13,11 @@ import {
 } from '../api'
 import { useCart } from '../cart'
 import { TempleLoader } from '../components/TempleLoader'
+import { Diamond, Logo, Ornament } from '../components/Brand'
 import '../App.css'
+import './Pujas.css'
 import './Checkout.css'
 
-const LOGO = '/logo.png'
-const TEMPLE_IMAGE = '/temple.jpg'
 const DIRECT_SUBMIT = isDirectOrderSubmit()
 
 function formatHour(hour24) {
@@ -83,6 +83,47 @@ const SLOKAS = [
   },
 ]
 
+/* ── Field formatters ──────────────────────────────────────────────
+   Each returns the value as it should appear in the input. Digits are
+   stripped back out before the payload is built, so the wire format is
+   unchanged by the masks. */
+
+const digitsOf = (value) => value.replace(/\D/g, '')
+
+/** Letters, spaces, apostrophes, hyphens and periods. Unicode-aware, so
+ *  accented and non-Latin names are not mangled. */
+const nameLike = (value) =>
+  value.replace(/[^\p{L}\p{M}\s'.-]/gu, '').replace(/\s{2,}/g, ' ')
+
+/**
+ * North American Numbering Plan. The area code and the exchange both have to
+ * start 2-9, and N11 area codes (911, 411, 211 ...) are reserved for services
+ * and never assigned. Catches made-up numbers like (123) 456-7890 that a plain
+ * ten-digit length check would wave through.
+ */
+const NANP = /^(?!\d11)[2-9]\d{2}[2-9]\d{6}$/
+
+/** (402) 697-8546 */
+function formatPhone(value) {
+  let raw = digitsOf(value)
+
+  // Drop a leading US country code. Autofill and pasted numbers often arrive
+  // as +1XXXXXXXXXX, and no US area code starts with 1, so 11 digits opening
+  // with a 1 is unambiguous.
+  if (raw.length === 11 && raw.startsWith('1')) raw = raw.slice(1)
+
+  const d = raw.slice(0, 10)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
+}
+
+/** 68144, or 68144-1234 once past five digits */
+function formatZip(value) {
+  const d = digitsOf(value).slice(0, 9)
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
+}
+
 const INITIAL_FORM = {
   firstName: '',
   lastName: '',
@@ -101,10 +142,6 @@ const INITIAL_FORM = {
   agree: false,
 }
 
-function locationLabel(location) {
-  return location === 'home' ? 'Home' : 'Temple'
-}
-
 function SlokaOverlay({ hint }) {
   const [index, setIndex] = useState(0)
 
@@ -120,19 +157,18 @@ function SlokaOverlay({ hint }) {
   return (
     <div className="sloka-overlay" role="status" aria-live="polite" aria-busy="true">
       <div className="sloka-overlay__panel">
-        <div className="sloka-overlay__loader">
-          <TempleLoader />
-        </div>
-        <p className="sloka-overlay__eyebrow">Offering your request…</p>
+        <Ornament />
         <p className="sloka-overlay__sanskrit" key={`s-${index}`}>
           {sloka.sanskrit}
         </p>
         <p className="sloka-overlay__meaning" key={`m-${index}`}>
           {sloka.meaning}
         </p>
+        <Ornament />
         <p className="sloka-overlay__hint">
-          {hint || 'Please wait while we submit your puja request.'}
+          {hint || 'Please wait while your puja request is submitted.'}
         </p>
+        <TempleLoader label="Submitting" />
       </div>
     </div>
   )
@@ -227,8 +263,7 @@ function PaypalCheckout({
 }
 
 export default function Checkout() {
-  const { items, total, count, bookingLocation, removeItem, updateQuantity, clearCart } =
-    useCart()
+  const { items, total, count, bookingLocation, removeItem, clearCart } = useCart()
   const navigate = useNavigate()
   const [form, setForm] = useState(INITIAL_FORM)
   const [requestId, setRequestId] = useState('')
@@ -287,32 +322,61 @@ export default function Checkout() {
     [items],
   )
 
+  // With a single line the total already states the figure, so repeating it
+  // per line is noise. Show line prices only once they can differ.
+  const showLinePrices = summaryLines.length > 1
+
   const onChange = (e) => {
     const { name, value, type, checked } = e.target
     let nextValue = type === 'checkbox' ? checked : value
 
-    if (name === 'mobile' || name === 'pincode') {
-      nextValue = value.replace(/\D/g, '').slice(0, name === 'mobile' ? 15 : 10)
+    switch (name) {
+      case 'firstName':
+      case 'lastName':
+      case 'city':
+      case 'state':
+      case 'country':
+        nextValue = nameLike(value)
+        break
+      case 'mobile':
+        nextValue = formatPhone(value)
+        break
+      case 'pincode':
+        nextValue = formatZip(value)
+        break
+      case 'email':
+        // Spaces are never valid here and are easy to pick up from autofill
+        nextValue = value.replace(/\s/g, '')
+        break
+      default:
+        break
     }
 
-    setForm((prev) => ({
-      ...prev,
-      [name]: nextValue,
-    }))
+    setForm((prev) => ({ ...prev, [name]: nextValue }))
+
+    // Clear a field's error as soon as the person starts correcting it
+    setErrors((prev) => (prev[name] ? { ...prev, [name]: undefined } : prev))
   }
 
   const validate = () => {
     const next = {}
     if (!form.firstName.trim()) next.firstName = 'Required'
+    else if (form.firstName.trim().length < 2) next.firstName = 'Enter your full first name'
+
     if (!form.lastName.trim()) next.lastName = 'Required'
-    if (!form.mobile.trim()) next.mobile = 'Required'
-    else if (!/^\d{10,15}$/.test(form.mobile)) next.mobile = 'Contact number must contain 10–15 digits'
+    else if (form.lastName.trim().length < 2) next.lastName = 'Enter your full last name'
+
+    const phone = digitsOf(form.mobile)
+    if (!phone) next.mobile = 'Required'
+    else if (phone.length !== 10) next.mobile = 'Enter a 10 digit US phone number'
+    else if (!NANP.test(phone)) next.mobile = 'Check the number, that is not a valid US number'
+
     if (!form.email.trim()) next.email = 'Required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) next.email = 'Invalid email'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email)) next.email = 'Enter a valid email address'
     if (!form.dateOfPuja) next.dateOfPuja = 'Required'
     if (!form.timeOfPuja) next.timeOfPuja = 'Required'
-    if (form.pincode && !/^\d{4,10}$/.test(form.pincode)) {
-      next.pincode = 'Pincode must contain 4–10 digits'
+    if (form.pincode && ![5, 9].includes(digitsOf(form.pincode).length)) {
+      next.pincode = 'Enter a 5 digit ZIP code'
     }
     if (form.alternateDate && !form.dateOfPuja) {
       next.alternateDate = 'Choose the preferred date first'
@@ -383,31 +447,31 @@ export default function Checkout() {
   if (submitted) {
     return (
       <div className="checkout-page">
-        <div className="checkout-page__bg" aria-hidden="true">
-          <img src={TEMPLE_IMAGE} alt="" className="checkout-page__image" />
-          <div className="checkout-page__veil" />
-        </div>
+        <header className="app-bar">
+          <div className="app-bar__inner">
+            <Logo />
+          </div>
+        </header>
+
         <div className="checkout-success">
-          <p className="checkout-success__eyebrow">Request received</p>
-          <h1>Thank you</h1>
-          <p>
+          <Diamond className="checkout-success__mark" />
+          <p className="eyebrow">Request received</p>
+          <h1 className="checkout-success__title">Thank you</h1>
+          <Ornament />
+          <p className="checkout-success__body">
             {DIRECT_SUBMIT
-              ? 'Your puja order was saved successfully.'
-              : 'Your payment was received and the puja order is confirmed.'}
+              ? 'Your puja request has been sent to the temple. A priest will confirm your date and time shortly.'
+              : 'Your payment was received and your puja is confirmed. A priest will be in touch to confirm the details.'}
           </p>
           {requestId && (
             <p className="checkout-success__id">
-              Request ID: <strong>{requestId}</strong>
+              <span>Request ID</span>
+              <strong>{requestId}</strong>
             </p>
           )}
-          <div className="checkout-success__actions">
-            <Link to="/pujas" className="checkout-btn">
-              Explore more pujas
-            </Link>
-            <Link to="/" className="checkout-link">
-              Back home
-            </Link>
-          </div>
+          <Link to="/pujas" className="btn btn--primary">
+            Book another puja
+          </Link>
         </div>
       </div>
     )
@@ -417,40 +481,33 @@ export default function Checkout() {
     <div className="checkout-page">
       {submitting && <SlokaOverlay />}
 
-      <div className="checkout-page__bg" aria-hidden="true">
-        <img src={TEMPLE_IMAGE} alt="" className="checkout-page__image" />
-        <div className="checkout-page__veil" />
-      </div>
-
-      <header className="checkout-top">
-        <button
-          type="button"
-          className="checkout-top__logo-btn"
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-        >
-          <img
-            className="checkout-top__logo"
-            src={LOGO}
-            alt="Hindu Temple Omaha, NE"
-            width={320}
-            height={110}
-          />
-        </button>
+      <header className="app-bar">
+        <div className="app-bar__inner">
+          <button
+            type="button"
+            className="app-bar__back"
+            onClick={() => navigate(-1)}
+            aria-label="Go back"
+          >
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path
+                d="M12 4 6 10l6 6"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <Logo />
+        </div>
       </header>
-
-      <Link to="/checkout" className="checkout-top__cart" aria-label={`Open cart (${count})`}>
-        <i className="fa-solid fa-cart-shopping" aria-hidden="true" />
-        {count > 0 && <span className="checkout-top__cart-badge">{count}</span>}
-      </Link>
 
       <main className="checkout-main">
         <header className="checkout-hero">
-          <p className="checkout-hero__eyebrow">Complete your request</p>
+          <p className="eyebrow">Complete your request</p>
           <h1 className="checkout-hero__title">Checkout</h1>
-          <p className="checkout-hero__mode">
-            {DIRECT_SUBMIT ? 'Direct order submit' : 'PayPal payment required'}
-          </p>
+          <Ornament />
         </header>
 
         <div className="checkout-layout">
@@ -486,30 +543,26 @@ export default function Checkout() {
               <ul className="summary-list">
                 {summaryLines.map((item) => (
                   <li key={item.key} className="summary-item">
-                    <div className="summary-item__main">
+                    <div className="summary-item__head">
                       <h3>{item.name}</h3>
-                      <p className="summary-item__meta">
-                        Booked at <strong>{locationLabel(item.location)}</strong>
-                        <span aria-hidden="true"> · </span>
-                        {formatMoney(item.amount)} each
-                      </p>
+                      {/* The line price only earns its place when it differs
+                          from the total below it. */}
+                      {showLinePrices && (
+                        <p className="summary-item__line">
+                          {formatMoney(item.lineTotal)}
+                        </p>
+                      )}
                     </div>
-                    <div className="summary-item__controls">
-                      <label>
-                        <span className="visually-hidden">Quantity for {item.name}</span>
-                        <select
-                          className="theme-select"
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(item.key, Number(e.target.value))}
-                        >
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <option key={n} value={n}>
-                              {n}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <p className="summary-item__line">{formatMoney(item.lineTotal)}</p>
+
+                    <div className="summary-item__meta">
+                      {item.quantity > 1 && (
+                        <span className="summary-item__qty">
+                          {item.quantity} &times; {formatMoney(item.amount)}
+                        </span>
+                      )}
+                      {item.location === 'home' && (
+                        <span className="summary-item__tag">At your home</span>
+                      )}
                       <button
                         type="button"
                         className="summary-item__remove"
@@ -523,13 +576,7 @@ export default function Checkout() {
               </ul>
             )}
 
-            {!awaitingPayment && !empty && bookingLocation && bookingLocation !== 'mixed' && (
-              <p className="summary-location">
-                Order location: <strong>{locationLabel(bookingLocation)}</strong>
-              </p>
-            )}
-
-            {!awaitingPayment && (
+            {!awaitingPayment && !empty && (
               <div className="summary-total">
                 <span>Total</span>
                 <strong>{formatMoney(total)}</strong>
@@ -588,6 +635,9 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="First Name *"
                         autoComplete="given-name"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={40}
                       />
                       {errors.firstName && <p className="field-error">{errors.firstName}</p>}
                     </label>
@@ -599,20 +649,28 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="Last Name *"
                         autoComplete="family-name"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={40}
                       />
                       {errors.lastName && <p className="field-error">{errors.lastName}</p>}
                     </label>
                     <label className={errors.mobile ? 'has-error' : ''}>
                       <span className="visually-hidden">Contact No</span>
-                      <input
-                        name="mobile"
-                        value={form.mobile}
-                        onChange={onChange}
-                        placeholder="Contact No *"
-                        autoComplete="tel"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
+                      <span className="field-phone">
+                        <span className="field-phone__code" aria-hidden="true">+1</span>
+                        <input
+                          type="tel"
+                          name="mobile"
+                          value={form.mobile}
+                          onChange={onChange}
+                          placeholder="(555) 123-4567 *"
+                          autoComplete="tel-national"
+                          inputMode="tel"
+                          enterKeyHint="next"
+                          maxLength={14}
+                        />
+                      </span>
                       {errors.mobile && <p className="field-error">{errors.mobile}</p>}
                     </label>
                     <label className={errors.email ? 'has-error' : ''}>
@@ -624,17 +682,27 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="Email *"
                         autoComplete="email"
+                        inputMode="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        enterKeyHint="next"
+                        maxLength={100}
                       />
                       {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
                     <label className="puja-form__full">
                       <span className="visually-hidden">Address</span>
+                      {/* Deliberately unfiltered: street addresses need digits */}
                       <input
                         name="address"
                         value={form.address}
                         onChange={onChange}
                         placeholder="Address"
                         autoComplete="street-address"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={120}
                       />
                     </label>
                     <label>
@@ -645,6 +713,9 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="Country"
                         autoComplete="country-name"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={56}
                       />
                     </label>
                     <label>
@@ -655,6 +726,9 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="State"
                         autoComplete="address-level1"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={40}
                       />
                     </label>
                     <label>
@@ -665,18 +739,22 @@ export default function Checkout() {
                         onChange={onChange}
                         placeholder="City"
                         autoComplete="address-level2"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
+                        maxLength={58}
                       />
                     </label>
                     <label className={errors.pincode ? 'has-error' : ''}>
-                      <span className="visually-hidden">Pincode</span>
+                      <span className="visually-hidden">ZIP Code</span>
                       <input
                         name="pincode"
                         value={form.pincode}
                         onChange={onChange}
-                        placeholder="Pincode"
+                        placeholder="ZIP Code"
                         autoComplete="postal-code"
                         inputMode="numeric"
-                        pattern="[0-9]*"
+                        enterKeyHint="next"
+                        maxLength={10}
                       />
                       {errors.pincode && <p className="field-error">{errors.pincode}</p>}
                     </label>
@@ -758,8 +836,11 @@ export default function Checkout() {
                       name="comments"
                       value={form.comments}
                       onChange={onChange}
-                      placeholder="Please call before coming"
+                      placeholder="Anything the priest should know"
                       rows={3}
+                      autoCapitalize="sentences"
+                      enterKeyHint="done"
+                      maxLength={500}
                     />
                   </label>
 
@@ -782,7 +863,7 @@ export default function Checkout() {
 
                   <button
                     type="submit"
-                    className="checkout-btn checkout-btn--wide"
+                    className="btn btn--primary puja-form__submit"
                     disabled={empty || submitting}
                   >
                     {submitting

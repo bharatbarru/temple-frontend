@@ -1,103 +1,154 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatAmount, getPujasUrl, hasAmount } from '../api'
 import { useCart } from '../cart'
-import { TempleLoader } from '../components/TempleLoader'
+import { Diamond, Logo, Ornament } from '../components/Brand'
 import '../App.css'
 import './Pujas.css'
 
-const LOGO = '/logo.png'
-const TEMPLE_IMAGE = '/temple.jpg'
-
-function PujaCard({ puja, index, onAdd }) {
-  const homeOk = hasAmount(puja.home_amount)
-  const templeOk = hasAmount(puja.temple_amount)
-
-  // Keep temple booking selected internally.
-  // The user does not need to see/select this option.
-  const [location] = useState(
-    templeOk ? 'temple' : homeOk ? 'home' : '',
+function PageLoader() {
+  return (
+    <div className="page-loader" aria-hidden="true">
+      <div className="page-loader__stage">
+        <Logo />
+        <span className="page-loader__rule" />
+        <span className="page-loader__word">Puja &amp; Prayers</span>
+        <span className="page-loader__track" />
+      </div>
+    </div>
   )
+}
 
-  const [justAdded, setJustAdded] = useState(false)
+/**
+ * Reveal-on-scroll as React state.
+ *
+ * This deliberately does not add the class imperatively. Any element whose
+ * className React also controls would lose an imperatively-added class on the
+ * next render, and the observer has already unobserved it by then.
+ */
+function useReveal() {
+  // A callback ref, not useRef: elements that mount later (the toolbar only
+  // renders once the fetch resolves) must be able to re-run the effect, and a
+  // ref object mutating does not do that.
+  const [node, setNode] = useState(null)
+  const [revealed, setRevealed] = useState(false)
 
-  const handleAdd = () => {
+  useEffect(() => {
+    if (!node || revealed) return undefined
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion || typeof IntersectionObserver === 'undefined') {
+      setRevealed(true)
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setRevealed(true)
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -4% 0px' },
+    )
+    observer.observe(node)
+
+    // Safety net. The reveal is decoration, but the cards it hides are the
+    // whole page, so it must never be able to strand them at opacity 0.
+    // Backgrounded tabs and zero-height viewports both starve the observer.
+    const fallback = window.setTimeout(() => setRevealed(true), 1200)
+
+    return () => {
+      observer.disconnect()
+      window.clearTimeout(fallback)
+    }
+  }, [node, revealed])
+
+  return [setNode, revealed]
+}
+
+function PujaCard({ puja, index, inCart, onAdd, onRemove }) {
+  const [revealRef, revealed] = useReveal()
+
+  const templeOk = hasAmount(puja.temple_amount)
+  const homeOk = hasAmount(puja.home_amount)
+  const location = templeOk ? 'temple' : homeOk ? 'home' : ''
+
+  const handleClick = () => {
     if (!location) return
 
-    const ok = onAdd(puja, location)
+    if (inCart) {
+      onRemove(`${puja.id}-${location}`)
+      if (navigator.vibrate) navigator.vibrate(8)
+      return
+    }
 
-    if (!ok) return
-
-    setJustAdded(true)
-
-    window.setTimeout(() => {
-      setJustAdded(false)
-    }, 1400)
+    if (onAdd(puja, location) && navigator.vibrate) navigator.vibrate(8)
   }
 
   return (
     <article
-      className="puja-card"
+      ref={revealRef}
+      className={`puja-card${revealed ? ' is-revealed' : ''}${inCart ? ' is-in-cart' : ''}`}
       data-reveal
-      style={{
-        transitionDelay: `${Math.min(index, 12) * 0.04}s`,
-      }}
+      style={{ transitionDelay: `${Math.min(index, 10) * 0.045}s` }}
     >
-      <div className="puja-card__accent" aria-hidden="true" />
+      <h2 className="puja-card__name">{puja.name}</h2>
 
-      {/* Puja name on left and price on right */}
-      <div className="puja-card__header">
-        <h2 className="puja-card__name">
-          {puja.name}
-        </h2>
+      <div className="puja-card__foot">
+        <p className="puja-card__price">{formatAmount(puja.temple_amount)}</p>
 
-        <div
-          className={`puja-card__price ${
-            !templeOk ? 'is-disabled' : ''
-          }`}
-        >
-          <span>Price: </span>
-          <strong>
-            {formatAmount(puja.temple_amount)}
-          </strong>
-        </div>
+        {location ? (
+          <button
+            type="button"
+            className={`puja-card__add${inCart ? ' is-in-cart' : ''}`}
+            onClick={handleClick}
+            aria-label={
+              inCart
+                ? `Remove ${puja.name} from cart`
+                : `Add ${puja.name} to cart`
+            }
+          >
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              {inCart ? (
+                <path
+                  d="m4.5 4.5 7 7m0-7-7 7"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <path
+                  d="M8 3.2v9.6M3.2 8h9.6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
+            <span>{inCart ? 'Remove' : 'Add'}</span>
+          </button>
+        ) : (
+          <p className="puja-card__note">Contact temple</p>
+        )}
       </div>
-
-      {/* 
-        Booking location is hidden.
-        Temple remains selected internally,
-        so cart functionality is not affected.
-      */}
-      <input
-        type="hidden"
-        name={`loc-${puja.id}`}
-        value={location}
-      />
-
-      {/* Add to cart button at bottom */}
-      {location ? (
-        <button
-          type="button"
-          className={`puja-card__add ${
-            justAdded ? 'is-added' : ''
-          }`}
-          onClick={handleAdd}
-        >
-          {justAdded ? 'Added to cart' : 'Add to cart'}
-        </button>
-      ) : (
-        <p className="puja-card__note">
-          Contact temple for pricing
-        </p>
-      )}
     </article>
   )
 }
 
-export default function Pujas() {
-  const { addItem, count } = useCart()
+function CardSkeleton() {
+  return (
+    <div className="puja-card puja-card--skeleton" aria-hidden="true">
+      <span className="skeleton skeleton--title" />
+      <div className="puja-card__foot">
+        <span className="skeleton skeleton--price" />
+        <span className="skeleton skeleton--button" />
+      </div>
+    </div>
+  )
+}
 
-  const [modalOpen, setModalOpen] = useState(false)
+export default function Pujas() {
+  const { addItem, removeItem, items, count } = useCart()
+  const [toolbarRef, toolbarShown] = useReveal()
+
   const [modalMessage, setModalMessage] = useState('')
   const modalCloseRef = useRef(null)
 
@@ -105,6 +156,15 @@ export default function Pujas() {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
+
+  // The loader plays a 1.5s intro then fades. Hold it for that long even when
+  // the API answers sooner, otherwise it flashes on and off.
+  const [introDone, setIntroDone] = useState(false)
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setIntroDone(true), 2200)
+    return () => window.clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -114,337 +174,195 @@ export default function Pujas() {
       setError('')
 
       try {
-        const res = await fetch(getPujasUrl(), {
-          signal: controller.signal,
-        })
-
-        if (!res.ok) {
-          throw new Error(
-            `Could not load pujas (${res.status})`,
-          )
-        }
+        const res = await fetch(getPujasUrl(), { signal: controller.signal })
+        if (!res.ok) throw new Error(`Could not load pujas (${res.status})`)
 
         const json = await res.json()
-
-        const rows = Array.isArray(json?.data)
-          ? json.data
-          : []
+        const rows = Array.isArray(json?.data) ? json.data : []
 
         const published = rows
           .filter((row) => row.publish !== false)
           .sort(
             (a, b) =>
-              (a.sort ?? 0) - (b.sort ?? 0) ||
-              a.name.localeCompare(b.name),
+              (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name),
           )
 
         setPujas(published)
         setStatus('ready')
       } catch (err) {
         if (err.name === 'AbortError') return
-
-        setError(
-          err.message ||
-            'Unable to reach the temple API.',
-        )
-
+        setError(err.message || 'Unable to reach the temple.')
         setStatus('error')
       }
     }
 
     load()
-
     return () => controller.abort()
   }, [])
 
   useEffect(() => {
-    const root = document.querySelector('.pujas-page')
-
-    if (!root) return undefined
-
-    const nodes = root.querySelectorAll(
-      '[data-reveal]:not(.is-revealed)',
-    )
-
-    if (!nodes.length) return undefined
-
-    const reduceMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)',
-    ).matches
-
-    if (reduceMotion) {
-      nodes.forEach((node) =>
-        node.classList.add('is-revealed'),
-      )
-
-      return undefined
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-revealed')
-
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      {
-        threshold: 0.12,
-        rootMargin: '0px 0px -6% 0px',
-      },
-    )
-
-    nodes.forEach((node) =>
-      observer.observe(node),
-    )
-
-    return () => observer.disconnect()
-  }, [status, pujas, query])
+    if (modalMessage && modalCloseRef.current) modalCloseRef.current.focus()
+  }, [modalMessage])
 
   useEffect(() => {
-    if (
-      modalOpen &&
-      modalCloseRef.current
-    ) {
-      modalCloseRef.current.focus()
+    if (!modalMessage) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setModalMessage('')
     }
-  }, [modalOpen])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [modalMessage])
 
-  function showModal(msg) {
-    setModalMessage(msg)
-    setModalOpen(true)
-  }
-
-  function closeModal() {
-    setModalOpen(false)
-    setModalMessage('')
-  }
-
-  function handleAddWrapper(puja, location) {
+  function handleAdd(puja, location) {
     const res = addItem(puja, location)
-
-    if (res && res.ok === true) {
-      return true
-    }
+    if (res?.ok) return true
 
     if (res?.reason === 'single') {
-      showModal(
-        'Currently you can book 1 puja for this session',
-      )
-
-      return false
+      setModalMessage('One puja can be booked per request. Please complete this request before adding another.')
+    } else if (res?.reason === 'no-amount') {
+      setModalMessage('This puja does not have an offering amount set. Please contact the temple office.')
     }
-
-    if (res?.reason === 'no-amount') {
-      showModal(
-        'This puja does not have a valid amount.',
-      )
-
-      return false
-    }
-
     return false
   }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-
     if (!q) return pujas
-
-    return pujas.filter((puja) =>
-      puja.name.toLowerCase().includes(q),
-    )
+    return pujas.filter((puja) => puja.name.toLowerCase().includes(q))
   }, [pujas, query])
+
+  // Cart keys are `${id}-${location}`; a card matches when its own key is held.
+  const cartKeys = useMemo(() => new Set(items.map((item) => item.key)), [items])
 
   return (
     <div className="pujas-page">
+      {!introDone && <PageLoader />}
 
-      {/* Background */}
-      <div
-        className="pujas-page__bg"
-        aria-hidden="true"
-      >
-        <img
-          src={TEMPLE_IMAGE}
-          alt=""
-          className="pujas-page__image"
-        />
-
-        <div className="pujas-page__veil" />
-      </div>
-
-      {/* Header */}
-      <header className="pujas-top">
-
-        <img
-          className="pujas-top__logo"
-          src={LOGO}
-          alt="Hindu Temple Omaha, NE"
-          width={320}
-          height={110}
-        />
-
-        <Link
-          to="/checkout"
-          className="pujas-top__cart"
-          aria-label={`Open cart (${count})`}
-        >
-          <i
-            className="fa-solid fa-cart-shopping"
-            aria-hidden="true"
-          />
-
-          {count > 0 && (
-            <span className="pujas-top__cart-badge">
-              {count}
-            </span>
-          )}
-        </Link>
+      <header className="app-bar">
+        <div className="app-bar__inner">
+          <Logo />
+        </div>
       </header>
 
-      {/* Main */}
-      <main className="pujas-main pujas-main--wide">
-
-        {/* Hero */}
-        <header className="pujas-hero is-revealed">
-
-          <h1 className="pujas-hero__title">
-            Pujas
-          </h1>
-
+      <main className="pujas-main">
+        <section className="pujas-hero">
+          <h1 className="pujas-hero__title">Puja &amp; Prayers Bookings</h1>
+          <Ornament />
           <p className="pujas-hero__lede">
-            Choose temple booking, then add pujas
-            to your cart.
+            Choose the puja you wish to offer, pick a date that suits you, and
+            complete the request in a few steps.
           </p>
+        </section>
 
-        </header>
-
-        {/* Loading */}
         {status === 'loading' && (
-          <div className="pujas-loading">
-            <TempleLoader />
+          <div className="puja-grid" aria-busy="true">
+            {Array.from({ length: 6 }, (_, i) => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         )}
 
-        {/* Error */}
         {status === 'error' && (
-          <div
-            className="pujas-message"
-            role="alert"
-          >
-            <p>{error}</p>
-
-            <p className="pujas-message__hint">
-              Make sure the API is running at{' '}
-
-              <code>
-                {import.meta.env.VITE_API_BASE_URL ||
-                  'http://127.0.0.1:8000'}
-              </code>
+          <div className="notice notice--error" role="alert">
+            <p className="notice__title">{error}</p>
+            <p className="notice__body">
+              Please try again in a moment, or call the temple at{' '}
+              <a href="tel:+14026978546">(402) 697-8546</a>.
             </p>
           </div>
         )}
 
-        {/* Ready */}
         {status === 'ready' && (
           <>
-
-            {/* Search */}
             <div
-              className="pujas-toolbar"
+              ref={toolbarRef}
+              className={`pujas-toolbar${toolbarShown ? ' is-revealed' : ''}`}
               data-reveal
             >
-              <label className="pujas-search">
-
-                <span className="visually-hidden">
-                  Search pujas
-                </span>
-
+              <label className="search">
+                <span className="visually-hidden">Search pujas</span>
+                <svg className="search__icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="m13.5 13.5 3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
                 <input
                   type="search"
                   value={query}
-                  onChange={(e) =>
-                    setQuery(e.target.value)
-                  }
-                  placeholder="Search puja by name…"
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name"
                   autoComplete="off"
                 />
-
               </label>
-
               <p className="pujas-count">
-                {filtered.length} of {pujas.length}{' '}
-                pujas
+                {filtered.length} {filtered.length === 1 ? 'puja' : 'pujas'}
               </p>
             </div>
 
-            {/* Puja cards */}
-            <div className="puja-grid">
-
-              {filtered.map((puja, index) => (
-                <PujaCard
-                  key={puja.id}
-                  puja={puja}
-                  index={index}
-                  onAdd={handleAddWrapper}
-                />
-              ))}
-
-            </div>
-
-            {/* No search results */}
-            {filtered.length === 0 && (
-              <p className="pujas-message">
-                No pujas match your search.
-              </p>
+            {filtered.length > 0 ? (
+              <div className="puja-grid">
+                {filtered.map((puja, index) => (
+                  <PujaCard
+                    key={puja.id}
+                    puja={puja}
+                    index={index}
+                    inCart={
+                      cartKeys.has(`${puja.id}-temple`) ||
+                      cartKeys.has(`${puja.id}-home`)
+                    }
+                    onAdd={handleAdd}
+                    onRemove={removeItem}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="notice">
+                <p className="notice__title">No pujas match that name</p>
+                <p className="notice__body">Try a shorter search term.</p>
+              </div>
             )}
-
-            {/* Checkout bar removed — cart is accessible via floating cart icon */}
-
           </>
         )}
-
       </main>
 
-      {/* Modal */}
-      {modalOpen && (
+      <Link
+        to="/checkout"
+        className={`cart-fab${count > 0 ? ' is-filled' : ''}`}
+        aria-label={count > 0 ? `Review cart, ${count} item` : 'Review cart, empty'}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M4 5h2l1.6 9.2a1.5 1.5 0 0 0 1.5 1.3h7.4a1.5 1.5 0 0 0 1.5-1.2L19.5 8H7"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="10" cy="19" r="1.4" fill="currentColor" />
+          <circle cx="17" cy="19" r="1.4" fill="currentColor" />
+        </svg>
+        {count > 0 && <span className="cart-fab__badge">{count}</span>}
+      </Link>
+
+      {modalMessage && (
         <div
-          className="puja-modal__overlay"
+          className="modal__scrim"
           role="dialog"
           aria-modal="true"
-          onClick={closeModal}
+          onClick={() => setModalMessage('')}
         >
-
-          <div
-            className="puja-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
-          >
-
-            <p className="puja-modal__message">
-              {modalMessage}
-            </p>
-
-            <div className="puja-modal__actions">
-
-              <button
-                ref={modalCloseRef}
-                className="puja-modal__close"
-                onClick={closeModal}
-              >
-                OK
-              </button>
-
-            </div>
-
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <Diamond className="modal__mark" />
+            <p className="modal__message">{modalMessage}</p>
+            <button
+              ref={modalCloseRef}
+              className="btn btn--primary"
+              onClick={() => setModalMessage('')}
+            >
+              Understood
+            </button>
           </div>
-
         </div>
       )}
-
     </div>
   )
 }

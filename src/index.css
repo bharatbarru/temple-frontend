@@ -1,17 +1,61 @@
+/* ============================================================
+   Hindu Temple Omaha · Puja Seva
+   Design tokens
+   ============================================================ */
+
 :root {
-  --stone-deep: #f3eee4;
-  --stone-mid: #efe6d8;
-  --sand: #000000;
-  --saffron: #ae0000;
-  --flame: #f0b24a;
-  --temple-red: #9b1c1c;
-  --temple-red-deep: #6e1212;
-  --mist: #000000;
-  --parchment: #f8f6f2;
-  --ink: #241c18;
-  --smoke: rgba(36, 28, 24, 0.06);
-  --font-display: 'Cinzel', Georgia, serif;
-  --font-body: 'Outfit', sans-serif;
+  /* — Surfaces: warm ivory paper — */
+  --paper:        #FBF7F0;   /* page ground */
+  --paper-raised: #FFFDF9;   /* cards, inputs */
+  --paper-sunken: #F4EEE3;   /* wells, disabled */
+
+  /* — Brand red, sampled from the temple logo —
+     #B40B0D is the logo's upper band, #980506 its lower strip.
+     Matching --maroon to the upper band lets the logo sit on the
+     app bar with no visible plaque edge. */
+  --maroon:       #B40B0D;   /* primary brand, == logo field */
+  --maroon-deep:  #980506;   /* pressed / gradient stop */
+  --maroon-soft:  #C9201F;   /* hover lift */
+
+  /* — Brass: the accent metal — */
+  --brass:        #A9803F;
+  --brass-light:  #C9A961;
+  --brass-pale:   rgba(169, 128, 63, 0.22);
+  --brass-faint:  rgba(169, 128, 63, 0.10);
+
+  /* — Text — */
+  --ink:          #2A211C;   /* headings */
+  --ink-body:     #4A3E36;   /* body copy */
+  --ink-muted:    #7C6B5F;   /* meta, labels */
+  --ink-inverse:  #FBF7F0;
+
+  /* — Feedback — */
+  --danger:       #A33028;
+  --success:      #3F6B4A;
+
+  /* — Type — */
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-body:    'Jost', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* — Elevation: warm, never grey — */
+  --lift-1: 0 1px 2px rgba(74, 45, 30, 0.05);
+  --lift-2: 0 2px 4px rgba(74, 45, 30, 0.05), 0 8px 20px rgba(74, 45, 30, 0.06);
+  --lift-3: 0 4px 8px rgba(74, 45, 30, 0.06), 0 16px 40px rgba(74, 45, 30, 0.10);
+
+  /* — Geometry — */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* — Motion — */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* — Safe areas — */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
 *,
@@ -24,6 +68,7 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -34,10 +79,26 @@ body,
 
 body {
   font-family: var(--font-body);
-  color: var(--ink);
-  background: var(--parchment);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-body);
+  background: var(--paper);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+}
+
+/* Fine paper grain. Sits above the ground, below everything else. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 }
 
 img {
@@ -52,16 +113,60 @@ a {
 
 button {
   font: inherit;
+  color: inherit;
   border: none;
   cursor: pointer;
   background: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-table {
-  border-collapse: collapse;
-  width: 100%;
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
 address {
   font-style: normal;
+}
+
+/* Cormorant ships oldstyle figures by default, which renders 101 as IOI.
+   Force lining figures wherever the display face carries numbers. */
+h1, h2, h3, strong, .amount {
+  font-variant-numeric: lining-nums;
+}
+
+::selection {
+  background: var(--maroon);
+  color: var(--ink-inverse);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ——— Shared type primitives ——— */
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.68rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

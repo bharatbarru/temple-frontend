@@ -1,7 +1,10 @@
-export function TempleLoader() {
+export function TempleLoader({ label = 'Loading' }) {
   return (
-    <div className="loader-text" role="status" aria-live="polite" aria-label="Loading">
-      Loading...
-    </div>
+    <span className="loader-text" role="status" aria-live="polite">
+      {label}
+      <span className="loader-dot" aria-hidden="true">.</span>
+      <span className="loader-dot" aria-hidden="true">.</span>
+      <span className="loader-dot" aria-hidden="true">.</span>
+    </span>
   )
 }

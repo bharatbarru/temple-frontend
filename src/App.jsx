@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { CartProvider } from './cart'
 import Checkout from './pages/Checkout'
-import Home from './pages/Home'
 import Pujas from './pages/Pujas'
 
 export default function App() {
@@ -9,7 +8,7 @@ export default function App() {
     <CartProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Pujas />} />
+          <Route path="/" element={<Navigate to="/pujas" replace />} />
           <Route path="/pujas" element={<Pujas />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="*" element={<Navigate to="/pujas" replace />} />
