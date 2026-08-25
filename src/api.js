@@ -72,12 +72,14 @@ export function buildPujaOrderPayload(form, cartItems, location) {
     first_name: form.firstName.trim(),
     last_name: form.lastName.trim(),
     email: form.email.trim(),
-    mobile: form.mobile.trim(),
+    // Sent unformatted. The inputs mask these for readability, but the
+    // backend has always received bare digits and still should.
+    mobile: form.mobile.replace(/\D/g, ''),
     address: form.address.trim(),
     country: form.country.trim(),
     state: form.state.trim(),
     city: form.city.trim(),
-    pincode: form.pincode.trim(),
+    pincode: form.pincode.replace(/\D/g, ''),
     location,
     date_of_puja: form.dateOfPuja,
     time_of_puja: form.timeOfPuja,

@@ -25,12 +25,23 @@ export function CartProvider({ children }) {
   const value = useMemo(() => {
     const addItem = (puja, location) => {
       const amount = location === 'home' ? puja.home_amount : puja.temple_amount
-      if (!hasAmount(amount)) return false
+      if (!hasAmount(amount)) return { ok: false, reason: 'no-amount' }
+
+      const allowMultiple = (import.meta.env.VITE_PUJA_MODE || '').toLowerCase() === 'multiple'
+
+      // enforce single-puja cart if not allowed multiple different pujas
+      const key = `${puja.id}-${location}`
+      if (!allowMultiple) {
+        if (items.length > 0) {
+          // if adding same item, allow incrementing quantity
+          const singleKey = items[0].key
+          if (singleKey !== key) return { ok: false, reason: 'single' }
+        }
+      }
 
       setItems((prev) => {
-        const key = `${puja.id}-${location}`
-        const existing = prev.find((item) => item.key === key)
-        if (existing) {
+        const existingLocal = prev.find((item) => item.key === key)
+        if (existingLocal) {
           return prev.map((item) =>
             item.key === key ? { ...item, quantity: item.quantity + 1 } : item,
           )
@@ -49,21 +60,11 @@ export function CartProvider({ children }) {
           },
         ]
       })
-      return true
+      return { ok: true }
     }
 
     const removeItem = (key) => {
       setItems((prev) => prev.filter((item) => item.key !== key))
-    }
-
-    const updateQuantity = (key, quantity) => {
-      setItems((prev) =>
-        prev
-          .map((item) =>
-            item.key === key ? { ...item, quantity: Math.max(0, quantity) } : item,
-          )
-          .filter((item) => item.quantity > 0),
-      )
     }
 
     const clearCart = () => setItems([])
@@ -84,7 +85,6 @@ export function CartProvider({ children }) {
       bookingLocation,
       addItem,
       removeItem,
-      updateQuantity,
       clearCart,
     }
   }, [items])
