@@ -274,6 +274,7 @@ export default function Checkout() {
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
 
   const empty = count === 0
   const locationMixed = bookingLocation === 'mixed'
@@ -844,16 +845,59 @@ export default function Checkout() {
                     />
                   </label>
 
-                  <label className={`puja-form__agree${errors.agree ? ' has-error' : ''}`}>
+                  <label
+                    className={`puja-form__agree${errors.agree ? ' has-error' : ''}`}
+                    onClick={(e) => {
+                      if (form.agree) return
+                      e.preventDefault()
+                      setShowTerms(true)
+                    }}
+                  >
                     <input
                       type="checkbox"
                       name="agree"
                       checked={form.agree}
                       onChange={onChange}
+                      readOnly={!form.agree}
                     />
                     <span>I Agree to the terms and conditions</span>
                   </label>
                   {errors.agree && <p className="field-error">{errors.agree}</p>}
+
+                  {showTerms && (
+                    <div
+                      className="terms-overlay"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="terms-title"
+                      onClick={() => setShowTerms(false)}
+                    >
+                      <div className="terms-panel" onClick={(e) => e.stopPropagation()}>
+                        <h3 id="terms-title" className="terms-panel__title">Terms and Conditions</h3>
+                        <Ornament />
+                        <div className="terms-panel__actions">
+                          <button
+                            type="button"
+                            className="btn btn--ghost"
+                            onClick={() => setShowTerms(false)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--primary"
+                            onClick={() => {
+                              setForm((prev) => ({ ...prev, agree: true }))
+                              setErrors((prev) => prev.agree ? { ...prev, agree: undefined } : prev)
+                              setShowTerms(false)
+                            }}
+                          >
+                            I Agree
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {submitError && (
                     <p className="field-error" role="alert">
