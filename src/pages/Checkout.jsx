@@ -95,13 +95,7 @@ const digitsOf = (value) => value.replace(/\D/g, '')
 const nameLike = (value) =>
   value.replace(/[^\p{L}\p{M}\s'.-]/gu, '').replace(/\s{2,}/g, ' ')
 
-/**
- * North American Numbering Plan. The area code and the exchange both have to
- * start 2-9, and N11 area codes (911, 411, 211 ...) are reserved for services
- * and never assigned. Catches made-up numbers like (123) 456-7890 that a plain
- * ten-digit length check would wave through.
- */
-const NANP = /^(?!\d11)[2-9]\d{2}[2-9]\d{6}$/
+const PHONE_10 = /^\d{10}$/
 
 /** (402) 697-8546 */
 function formatPhone(value) {
@@ -369,8 +363,7 @@ export default function Checkout() {
 
     const phone = digitsOf(form.mobile)
     if (!phone) next.mobile = 'Required'
-    else if (phone.length !== 10) next.mobile = 'Enter a 10 digit US phone number'
-    else if (!NANP.test(phone)) next.mobile = 'Check the number, that is not a valid US number'
+    else if (!PHONE_10.test(phone)) next.mobile = 'Enter a 10 digit phone number'
 
     if (!form.email.trim()) next.email = 'Required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email)) next.email = 'Enter a valid email address'
