@@ -219,26 +219,23 @@ function PaypalCheckout({
             const paypalOrderId = data.orderID || details?.id
             const paypal = buildPaypalPaymentPayload(details, paypalOrderId, amount)
 
-            // Submit the order as soon as PayPal capture succeeds.
-            // The order payload now carries the PayPal fields too, which lets the
-            // backend receive everything in one round-trip where possible.
-            const created = await submitPujaOrder({
-              ...orderPayload,
-              paypal,
-            })
-            const pujaRequestId = created?.data?.puja_request_id || ''
+            // Create the puja order first, then explicitly call the backend
+            // paypal-success endpoint with the PayPal fields so the payment is
+            // recorded and confirmation mails are sent.
+            const created = await submitPujaOrder(orderPayload)
+            const pujaRequestId = created?.data?.puja_request_id
 
             if (!pujaRequestId) {
-              const confirmed = await confirmPaypalSuccess({
-                pujaRequestId,
-                email,
-                paypal,
-              })
-              onPaid(confirmed, pujaRequestId)
-              return
+              throw new Error('Failed to create puja request before confirming PayPal payment.')
             }
 
-            onPaid(created, pujaRequestId)
+            const confirmed = await confirmPaypalSuccess({
+              pujaRequestId,
+              email,
+              paypal,
+            })
+
+            onPaid(confirmed, pujaRequestId)
           } catch (err) {
             onError(err.message || 'PayPal payment confirmation failed.')
           } finally {
