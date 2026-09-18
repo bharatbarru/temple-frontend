@@ -730,8 +730,7 @@ export default function Checkout() {
                   </p>
 
                   <div className="puja-form__availability">
-                    <a href="https://www.trumba.com/calendars/private-pujas?type=Puja" target='_blank'>
-                    <h3>Check Puja Availability</h3></a>
+                    
                     <div className="puja-form__grid">
                       <label>
                         <span className="field-label">Date of Puja</span>
