@@ -20,44 +20,44 @@ import './Checkout.css'
 
 const DIRECT_SUBMIT = isDirectOrderSubmit()
 
-function formatHour(hour24) {
-  const suffix = hour24 >= 12 ? 'pm' : 'am'
-  const h = hour24 % 12 === 0 ? 12 : hour24 % 12
-  return `${h}${suffix}`
-}
-
-const TIME_SLOTS = Array.from({ length: 14 }, (_, i) => {
-  const start = 6 + i
-  const end = start + 1
-  return { startHour: start, label: `${formatHour(start)} to ${formatHour(end)}` }
-})
+// The temple keeps US Central time. Devotees book from every timezone, so the
+// clock shown here is the temple's, never the visitor's. Intl handles the
+// CST/CDT switch on its own.
+const TEMPLE_TZ = 'America/Chicago'
 
 function todayISO() {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  // en-CA renders as YYYY-MM-DD, which is the shape the backend stores.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TEMPLE_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
-function getNextDayISO(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`)
-  d.setDate(d.getDate() + 1)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+function currentTimeLabel() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TEMPLE_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  }).formatToParts(new Date())
+  const get = (type) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${get('hour')}:${get('minute')} ${get('dayPeriod').toLowerCase()} ${get('timeZoneName')}`
 }
 
-function getAvailableSlots(dateStr) {
-  if (!dateStr) return TIME_SLOTS
-
-  const today = todayISO()
-  if (dateStr > today) return TIME_SLOTS
-  if (dateStr < today) return []
-
-  const currentHour = new Date().getHours()
-  return TIME_SLOTS.filter((slot) => slot.startHour > currentHour)
+// The stored date stays ISO for the backend; this is the human-facing echo.
+// Parsed and formatted in UTC so the calendar day can never shift by one.
+function formatDateLabel(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 const SLOKAS = [
@@ -130,9 +130,6 @@ const INITIAL_FORM = {
   pincode: '',
   dateOfPuja: '',
   timeOfPuja: '',
-  alternateDate: '',
-  alternateTime: '',
-  comments: '',
   agree: false,
 }
 
@@ -256,7 +253,11 @@ function PaypalCheckout({
 export default function Checkout() {
   const { items, total, count, bookingLocation, removeItem, clearCart } = useCart()
   const navigate = useNavigate()
-  const [form, setForm] = useState(INITIAL_FORM)
+  const [form, setForm] = useState(() => ({
+    ...INITIAL_FORM,
+    dateOfPuja: todayISO(),
+    timeOfPuja: currentTimeLabel(),
+  }))
   const [requestId, setRequestId] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [awaitingPayment, setAwaitingPayment] = useState(false)
@@ -269,41 +270,24 @@ export default function Checkout() {
 
   const empty = count === 0
   const locationMixed = bookingLocation === 'mixed'
-  const minDate = todayISO()
-  const minAlternateDate = form.dateOfPuja ? getNextDayISO(form.dateOfPuja) : minDate
   const paypalClientId = getPaypalClientId()
   const paypalCurrency = getPaypalCurrency()
 
-  const primarySlots = useMemo(
-    () => getAvailableSlots(form.dateOfPuja),
-    [form.dateOfPuja],
-  )
-  const alternateSlots = useMemo(
-    () => getAvailableSlots(form.alternateDate),
-    [form.alternateDate],
-  )
-
+  // Both fields are read-only mirrors of the clock, so keep them ticking
+  // rather than freezing whatever the moment of mount happened to be.
   useEffect(() => {
-    if (form.timeOfPuja && !primarySlots.some((s) => s.label === form.timeOfPuja)) {
-      setForm((prev) => ({ ...prev, timeOfPuja: '' }))
-    }
-  }, [form.dateOfPuja, form.timeOfPuja, primarySlots])
-
-  useEffect(() => {
-    if (
-      form.alternateTime &&
-      !alternateSlots.some((s) => s.label === form.alternateTime)
-    ) {
-      setForm((prev) => ({ ...prev, alternateTime: '' }))
-    }
-  }, [form.alternateDate, form.alternateTime, alternateSlots])
-
-  useEffect(() => {
-    if (!form.dateOfPuja || !form.alternateDate) return
-    if (form.alternateDate <= form.dateOfPuja) {
-      setForm((prev) => ({ ...prev, alternateDate: '', alternateTime: '' }))
-    }
-  }, [form.dateOfPuja, form.alternateDate])
+    const id = window.setInterval(() => {
+      setForm((prev) => {
+        const dateOfPuja = todayISO()
+        const timeOfPuja = currentTimeLabel()
+        if (prev.dateOfPuja === dateOfPuja && prev.timeOfPuja === timeOfPuja) {
+          return prev
+        }
+        return { ...prev, dateOfPuja, timeOfPuja }
+      })
+    }, 30000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const summaryLines = useMemo(
     () =>
@@ -368,16 +352,6 @@ export default function Checkout() {
     if (!form.timeOfPuja) next.timeOfPuja = 'Required'
     if (form.pincode && ![5, 9].includes(digitsOf(form.pincode).length)) {
       next.pincode = 'Enter a 5 digit ZIP code'
-    }
-    if (form.alternateDate && !form.dateOfPuja) {
-      next.alternateDate = 'Choose the preferred date first'
-    } else if (form.alternateDate && form.alternateDate <= form.dateOfPuja) {
-      next.alternateDate = 'Alternate date must be after the preferred date'
-    } else if (form.alternateDate && !form.alternateTime) {
-      next.alternateTime = 'Choose a time for the alternate date'
-    }
-    if (form.alternateTime && !form.alternateDate) {
-      next.alternateDate = 'Select an alternate date first'
     }
     if (!form.agree) next.agree = 'Please agree to the terms and conditions'
     if (empty) next.cart = 'Add at least one puja'
@@ -751,89 +725,34 @@ export default function Checkout() {
                     </label>
                   </div>
 
+                  <p className="puja-form__note">
+                    Confirm with priest before placing the request
+                  </p>
+
                   <div className="puja-form__availability">
                     <a href="https://www.trumba.com/calendars/private-pujas?type=Puja" target='_blank'>
                     <h3>Check Puja Availability</h3></a>
                     <div className="puja-form__grid">
-                      <label className={errors.dateOfPuja ? 'has-error' : ''}>
-                        <span className="field-label">Date of Puja *</span>
+                      <label>
+                        <span className="field-label">Date of Puja</span>
                         <input
-                          type="date"
-                          name="dateOfPuja"
-                          value={form.dateOfPuja}
-                          onChange={onChange}
-                          min={minDate}
-                          required
+                          type="text"
+                          value={formatDateLabel(form.dateOfPuja)}
+                          readOnly
+                          tabIndex={-1}
                         />
-                        {errors.dateOfPuja && <p className="field-error">{errors.dateOfPuja}</p>}
                       </label>
-                      <label className={errors.timeOfPuja ? 'has-error' : ''}>
-                        <span className="field-label">Time of Puja *</span>
-                        <select
-                          className="theme-select"
-                          name="timeOfPuja"
+                      <label>
+                        <span className="field-label">Time of Puja</span>
+                        <input
+                          type="text"
                           value={form.timeOfPuja}
-                          onChange={onChange}
-                          required
-                        >
-                          <option value="">Select 1-hour slot</option>
-                          {primarySlots.map((slot) => (
-                            <option key={slot.label} value={slot.label}>
-                              {slot.label}
-                            </option>
-                          ))}
-                        </select>
-                        {form.dateOfPuja && primarySlots.length === 0 && (
-                          <span className="field-hint">
-                            No upcoming slots left for this date.
-                          </span>
-                        )}
-                        {errors.timeOfPuja && <p className="field-error">{errors.timeOfPuja}</p>}
-                      </label>
-                      <label className={errors.alternateDate ? 'has-error' : ''}>
-                        <span className="field-label">Alternate Date of Puja</span>
-                        <input
-                          type="date"
-                          name="alternateDate"
-                          value={form.alternateDate}
-                          onChange={onChange}
-                          min={minAlternateDate}
+                          readOnly
+                          tabIndex={-1}
                         />
-                        {errors.alternateDate && <p className="field-error">{errors.alternateDate}</p>}
-                      </label>
-                      <label className={errors.alternateTime ? 'has-error' : ''}>
-                        <span className="field-label">Alternative Time of Puja</span>
-                        <select
-                          className="theme-select"
-                          name="alternateTime"
-                          value={form.alternateTime}
-                          onChange={onChange}
-                        >
-                          <option value="">Select 1-hour slot</option>
-                          {alternateSlots.map((slot) => (
-                            <option key={`alt-${slot.label}`} value={slot.label}>
-                              {slot.label}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.alternateTime && <p className="field-error">{errors.alternateTime}</p>}
                       </label>
                     </div>
                   </div>
-
-                  <label className="puja-form__full">
-                    <span className="field-label">Comments</span>
-                    <textarea
-                      name="comments"
-                      value={form.comments}
-                      onChange={onChange}
-                      placeholder="Anything the priest should know"
-                      rows={3}
-                      autoCapitalize="sentences"
-                      enterKeyHint="done"
-                      maxLength={500}
-                    />
-                  </label>
 
                   <label
                     className={`puja-form__agree${errors.agree ? ' has-error' : ''}`}

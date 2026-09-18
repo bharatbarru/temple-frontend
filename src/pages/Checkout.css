@@ -349,6 +349,31 @@
   color: var(--ink-muted);
 }
 
+.puja-form input[readonly] {
+  background: var(--paper-sunken);
+  color: var(--ink-body);
+  cursor: default;
+}
+
+.puja-form input[readonly]:focus {
+  outline: none;
+  border-color: var(--brass-pale);
+  box-shadow: none;
+}
+
+.puja-form__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--maroon);
+  background: var(--paper-sunken);
+  border: 1px solid var(--brass-pale);
+  border-left: 3px solid var(--brass);
+  border-radius: var(--r-sm);
+}
+
 /* ——— Availability block ——— */
 .puja-form__availability {
   display: grid;

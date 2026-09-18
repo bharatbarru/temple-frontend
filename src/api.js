@@ -83,9 +83,10 @@ export function buildPujaOrderPayload(form, cartItems, location) {
     location,
     date_of_puja: form.dateOfPuja,
     time_of_puja: form.timeOfPuja,
-    alternate_date_of_puja1: form.alternateDate || null,
-    alternate_time_of_puja2: form.alternateTime || null,
-    comments: form.comments.trim() || null,
+    // The form no longer collects alternates; the backend contract still
+    // carries the (nullable) keys.
+    alternate_date_of_puja1: null,
+    alternate_time_of_puja2: null,
     terms_conditions: Boolean(form.agree),
     cart: [...cartMap.values()],
   }
