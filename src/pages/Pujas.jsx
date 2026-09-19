@@ -244,7 +244,7 @@ export default function Pujas() {
 
       <main className="pujas-main">
         <section className="pujas-hero">
-          <h1 className="pujas-hero__title">Puja &amp; Prayers Bookings</h1>
+          <h1 className="pujas-hero__title">Sankalpa &amp; Pooja Payments</h1>
           <Ornament />
           <p className="pujas-hero__lede">
             Choose the puja you wish to offer, pick a date that suits you, and
