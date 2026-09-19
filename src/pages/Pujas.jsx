@@ -180,12 +180,10 @@ export default function Pujas() {
         const json = await res.json()
         const rows = Array.isArray(json?.data) ? json.data : []
 
-        const published = rows
-          .filter((row) => row.publish !== false)
-          .sort(
-            (a, b) =>
-              (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name),
-          )
+        const published = rows.sort(
+          (a, b) =>
+            (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name),
+        )
 
         setPujas(published)
         setStatus('ready')
