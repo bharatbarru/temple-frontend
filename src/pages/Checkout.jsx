@@ -348,11 +348,16 @@ export default function Checkout() {
 
     if (!form.email.trim()) next.email = 'Required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email)) next.email = 'Enter a valid email address'
-    if (!form.dateOfPuja) next.dateOfPuja = 'Required'
-    if (!form.timeOfPuja) next.timeOfPuja = 'Required'
-    if (form.pincode && ![5, 9].includes(digitsOf(form.pincode).length)) {
+    if (!form.address.trim()) next.address = 'Required'
+    if (!form.country.trim()) next.country = 'Required'
+    if (!form.state.trim()) next.state = 'Required'
+    if (!form.city.trim()) next.city = 'Required'
+    if (!form.pincode.trim()) next.pincode = 'Required'
+    else if (![5, 9].includes(digitsOf(form.pincode).length)) {
       next.pincode = 'Enter a 5 digit ZIP code'
     }
+    if (!form.dateOfPuja) next.dateOfPuja = 'Required'
+    if (!form.timeOfPuja) next.timeOfPuja = 'Required'
     if (!form.agree) next.agree = 'Please agree to the terms and conditions'
     if (empty) next.cart = 'Add at least one puja'
     if (locationMixed) {
@@ -656,58 +661,66 @@ export default function Checkout() {
                       />
                       {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
-                    <label className="puja-form__full">
+                    <label className={`puja-form__full${errors.address ? ' has-error' : ''}`}>
                       <span className="visually-hidden">Address</span>
                       {/* Deliberately unfiltered: street addresses need digits */}
                       <input
                         name="address"
                         value={form.address}
                         onChange={onChange}
-                        placeholder="Address"
+                        placeholder="Address *"
+                        required
                         autoComplete="street-address"
                         autoCapitalize="words"
                         enterKeyHint="next"
                         maxLength={120}
                       />
+                      {errors.address && <p className="field-error">{errors.address}</p>}
                     </label>
-                    <label>
+                    <label className={errors.country ? 'has-error' : ''}>
                       <span className="visually-hidden">Country</span>
                       <input
                         name="country"
                         value={form.country}
                         onChange={onChange}
-                        placeholder="Country"
+                        placeholder="Country *"
+                        required
                         autoComplete="country-name"
                         autoCapitalize="words"
                         enterKeyHint="next"
                         maxLength={56}
                       />
+                      {errors.country && <p className="field-error">{errors.country}</p>}
                     </label>
-                    <label>
+                    <label className={errors.state ? 'has-error' : ''}>
                       <span className="visually-hidden">State</span>
                       <input
                         name="state"
                         value={form.state}
                         onChange={onChange}
-                        placeholder="State"
+                        placeholder="State *"
+                        required
                         autoComplete="address-level1"
                         autoCapitalize="words"
                         enterKeyHint="next"
                         maxLength={40}
                       />
+                      {errors.state && <p className="field-error">{errors.state}</p>}
                     </label>
-                    <label>
+                    <label className={errors.city ? 'has-error' : ''}>
                       <span className="visually-hidden">City</span>
                       <input
                         name="city"
                         value={form.city}
                         onChange={onChange}
-                        placeholder="City"
+                        placeholder="City *"
+                        required
                         autoComplete="address-level2"
                         autoCapitalize="words"
                         enterKeyHint="next"
                         maxLength={58}
                       />
+                      {errors.city && <p className="field-error">{errors.city}</p>}
                     </label>
                     <label className={errors.pincode ? 'has-error' : ''}>
                       <span className="visually-hidden">ZIP Code</span>
@@ -715,7 +728,8 @@ export default function Checkout() {
                         name="pincode"
                         value={form.pincode}
                         onChange={onChange}
-                        placeholder="ZIP Code"
+                        placeholder="ZIP Code *"
+                        required
                         autoComplete="postal-code"
                         inputMode="numeric"
                         enterKeyHint="next"
