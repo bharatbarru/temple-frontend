@@ -250,6 +250,9 @@ export default function Pujas() {
             Choose the puja you wish to offer, pick a date that suits you, and
             complete the request in a few steps.
           </p>
+          <Link to="/donate" className="btn btn--primary donation-link">
+            Make a general donation
+          </Link>
         </section>
 
         {status === 'loading' && (

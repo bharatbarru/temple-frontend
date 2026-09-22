@@ -4,6 +4,11 @@ const PUJA_ORDER_PATH =
 const PUJA_PAYPAL_SUCCESS_PATH =
   import.meta.env.VITE_PUJA_PAYPAL_SUCCESS_PATH ||
   '/api/public/puja-orders/paypal-success'
+const GENERAL_DONATION_PATH =
+  import.meta.env.VITE_GENERAL_DONATION_PATH || '/api/public/general-donations'
+const GENERAL_DONATION_PAYPAL_SUCCESS_PATH =
+  import.meta.env.VITE_GENERAL_DONATION_PAYPAL_SUCCESS_PATH ||
+  '/api/public/general-donations/paypal-success'
 
 /** true = submit only to existing order endpoint (no PayPal) */
 export function isDirectOrderSubmit() {
@@ -33,6 +38,14 @@ export function getPujaOrderUrl() {
 
 export function getPaypalSuccessUrl() {
   return joinUrl(PUJA_PAYPAL_SUCCESS_PATH)
+}
+
+export function getGeneralDonationUrl() {
+  return joinUrl(GENERAL_DONATION_PATH)
+}
+
+export function getGeneralDonationPaypalSuccessUrl() {
+  return joinUrl(GENERAL_DONATION_PAYPAL_SUCCESS_PATH)
 }
 
 export function hasAmount(value) {
@@ -176,6 +189,57 @@ export async function confirmPaypalSuccess({
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+  })
+
+  return parseJsonResponse(res)
+}
+
+export function buildGeneralDonationPayload(form, amount) {
+  return {
+    first_name: form.firstName.trim(),
+    last_name: form.lastName.trim(),
+    mobile: form.mobile.replace(/\D/g, ''),
+    email: form.email.trim(),
+    address: form.address.trim(),
+    city: form.city.trim(),
+    state: form.state.trim(),
+    zip: form.pincode.replace(/\D/g, ''),
+    pincode: form.pincode.replace(/\D/g, ''),
+    confirmation: Boolean(form.agree),
+    amount: Number(amount),
+  }
+}
+
+export async function submitGeneralDonation(payload) {
+  const res = await fetch(getGeneralDonationUrl(), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  return parseJsonResponse(res)
+}
+
+export async function confirmGeneralDonationPaypalSuccess({
+  donationRequestId,
+  email,
+  paypal,
+}) {
+  const res = await fetch(getGeneralDonationPaypalSuccessUrl(), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      donation_request_id: donationRequestId,
+      email,
+      ...paypal,
+      payment_method: 'PayPal',
+    }),
   })
 
   return parseJsonResponse(res)
