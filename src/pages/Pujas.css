@@ -93,7 +93,7 @@
 }
 
 .pujas-hero__title {
-  max-width: 14ch;
+  max-width: 20ch;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: clamp(2.1rem, 8vw, 3.5rem);
@@ -114,6 +114,14 @@
 
 .donation-link {
   margin-top: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.donation-link .material-symbols-outlined {
+  font-size: 1.25em;
+  line-height: 1;
 }
 
 /* ============================================================

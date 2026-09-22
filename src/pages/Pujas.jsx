@@ -244,14 +244,15 @@ export default function Pujas() {
 
       <main className="pujas-main">
         <section className="pujas-hero">
-          <h1 className="pujas-hero__title">Sankalpa &amp; Pooja Payments</h1>
+          <h1 className="pujas-hero__title">Sankalpa &amp; Temple Pooja Payments Online</h1>
           <Ornament />
           <p className="pujas-hero__lede">
-            Choose the puja you wish to offer, pick a date that suits you, and
+            Choose the puja you wish to offer, and
             complete the request in a few steps.
           </p>
           <Link to="/donate" className="btn btn--primary donation-link">
-            Make a general donation
+            <span className="material-symbols-outlined" aria-hidden="true">volunteer_activism</span>
+            Make a Donation
           </Link>
         </section>
 
