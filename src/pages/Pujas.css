@@ -113,7 +113,13 @@
 }
 
 .donation-link {
+  gap: 0.5rem;
   margin-top: 0.3rem;
+}
+
+.donation-link svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 /* ============================================================

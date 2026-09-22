@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import VolunteerActivismOutlinedIcon from '@mui/icons-material/VolunteerActivismOutlined'
 import { Link } from 'react-router-dom'
 import { formatAmount, getPujasUrl, hasAmount } from '../api'
 import { useCart } from '../cart'
@@ -251,7 +252,8 @@ export default function Pujas() {
             complete the request in a few steps.
           </p>
           <Link to="/donate" className="btn btn--primary donation-link">
-            Make a general donation
+            <VolunteerActivismOutlinedIcon aria-hidden="true" />
+            <span>Make A Donation</span>
           </Link>
         </section>
 
