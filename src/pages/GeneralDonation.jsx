@@ -4,7 +4,7 @@ import {
   usePayPalScriptReducer,
 } from '@paypal/react-paypal-js'
 import { useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   buildGeneralDonationPayload,
   buildPaypalPaymentPayload,
@@ -31,6 +31,9 @@ const INITIAL_FORM = {
   amount: '',
   agree: false,
 }
+
+const amountLike = (value) =>
+  String(value ?? '').replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1').slice(0, 9)
 
 const digitsOf = (value) => value.replace(/\D/g, '')
 const nameLike = (value) => value.replace(/[^\p{L}\p{M}\s'.-]/gu, '').replace(/\s{2,}/g, ' ')
@@ -116,7 +119,13 @@ function PaypalDonation({ amount, email, donationPayload, onPaid, onError }) {
 
 export default function GeneralDonation() {
   const navigate = useNavigate()
-  const [form, setForm] = useState(INITIAL_FORM)
+  const location = useLocation()
+  // The amount is normally collected by the prompt on /pujas and handed over in
+  // router state; landing here directly just leaves the field empty and locked.
+  const [form, setForm] = useState(() => ({
+    ...INITIAL_FORM,
+    amount: amountLike(location.state?.amount),
+  }))
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
   const [pending, setPending] = useState(null)
@@ -165,7 +174,7 @@ export default function GeneralDonation() {
     if (name === 'mobile') nextValue = formatPhone(value)
     if (name === 'pincode') nextValue = formatZip(value)
     if (name === 'email') nextValue = value.replace(/\s/g, '')
-    if (name === 'amount') nextValue = value.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1')
+    if (name === 'amount') nextValue = amountLike(value)
     setForm((previous) => ({ ...previous, [name]: nextValue }))
     setErrors((previous) => (previous[name] ? { ...previous, [name]: undefined } : previous))
     setSubmitError('')
