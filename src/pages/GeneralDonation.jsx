@@ -3,7 +3,7 @@ import {
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from '@paypal/react-paypal-js'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   buildGeneralDonationPayload,
@@ -141,6 +141,18 @@ export default function GeneralDonation() {
   // mandatory over $100, PayPal needs a figure), so the rest of the form stays
   // locked until it is given.
   const amountEntered = Number.isFinite(amount) && amount > 0
+
+  // The address block only exists above $100. Drop anything typed there if the
+  // amount falls back under, so the payload never carries values the donor can
+  // no longer see or edit.
+  useEffect(() => {
+    if (addressRequired) return
+    setForm((previous) =>
+      previous.address || previous.city || previous.state || previous.pincode
+        ? { ...previous, address: '', city: '', state: '', pincode: '' }
+        : previous,
+    )
+  }, [addressRequired])
 
   const closeAmountPrompt = () => {
     setShowAmountPrompt(false)
@@ -327,22 +339,27 @@ export default function GeneralDonation() {
                       <input type="email" name="email" value={form.email} onChange={onChange} placeholder="Email *" autoComplete="email" maxLength={100} {...lockProps} />
                       {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
-                    <label className={`puja-form__full ${errors.address ? 'has-error' : ''}`}>
-                      <span className="visually-hidden">Address</span>
-                      <input name="address" value={form.address} onChange={onChange} placeholder={`Address${addressRequired ? ' *' : ''}`} autoComplete="street-address" maxLength={150} {...lockProps} />
-                      {errors.address && <p className="field-error">{errors.address}</p>}
-                    </label>
-                    {[
-                      ['city', 'City', 'address-level2'],
-                      ['state', 'State', 'address-level1'],
-                      ['pincode', 'ZIP Code', 'postal-code'],
-                    ].map(([name, placeholder, autoComplete]) => (
-                      <label key={name} className={errors[name] ? 'has-error' : ''}>
-                        <span className="visually-hidden">{placeholder}</span>
-                        <input name={name} value={form[name]} onChange={onChange} placeholder={`${placeholder}${addressRequired ? ' *' : ''}`} autoComplete={autoComplete} maxLength={10} {...lockProps} />
-                        {errors[name] && <p className="field-error">{errors[name]}</p>}
-                      </label>
-                    ))}
+                    {addressRequired && (
+                      <>
+                        
+                        <label className={`puja-form__full ${errors.address ? 'has-error' : ''}`}>
+                          <span className="visually-hidden">Address</span>
+                          <input name="address" value={form.address} onChange={onChange} placeholder="Address *" autoComplete="street-address" maxLength={150} {...lockProps} />
+                          {errors.address && <p className="field-error">{errors.address}</p>}
+                        </label>
+                        {[
+                          ['city', 'City', 'address-level2'],
+                          ['state', 'State', 'address-level1'],
+                          ['pincode', 'ZIP Code', 'postal-code'],
+                        ].map(([name, placeholder, autoComplete]) => (
+                          <label key={name} className={errors[name] ? 'has-error' : ''}>
+                            <span className="visually-hidden">{placeholder}</span>
+                            <input name={name} value={form[name]} onChange={onChange} placeholder={`${placeholder} *`} autoComplete={autoComplete} maxLength={10} {...lockProps} />
+                            {errors[name] && <p className="field-error">{errors[name]}</p>}
+                          </label>
+                        ))}
+                      </>
+                    )}
                   </div>
                   <label
                     className={`puja-form__agree ${errors.agree ? 'has-error' : ''}${amountEntered ? '' : ' donation-grid--locked'}`}
