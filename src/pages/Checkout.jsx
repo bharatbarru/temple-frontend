@@ -805,7 +805,7 @@ export default function Checkout() {
                       onChange={onChange}
                       readOnly={!form.agree}
                     />
-                    <span>I Agree to the terms and conditions</span>
+                    <span>I agree to terms and conditions and confirm that the payment is directly made to Hindu Temple Omaha.</span>
                   </label>
                   {errors.agree && <p className="field-error">{errors.agree}</p>}
 
@@ -820,6 +820,9 @@ export default function Checkout() {
                       <div className="terms-panel" onClick={(e) => e.stopPropagation()}>
                         <h3 id="terms-title" className="terms-panel__title">Terms and Conditions</h3>
                         <Ornament />
+                        <div className="terms-panel__body">
+                          <p>I agree to terms and conditions and confirm that the payment is directly made to Hindu Temple Omaha.</p>
+                        </div>
                         <div className="terms-panel__actions">
                           <button
                             type="button"
