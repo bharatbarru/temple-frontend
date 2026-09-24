@@ -332,7 +332,6 @@ export default function GeneralDonation() {
                       <input name="address" value={form.address} onChange={onChange} placeholder={`Address${addressRequired ? ' *' : ''}`} autoComplete="street-address" maxLength={150} {...lockProps} />
                       {errors.address && <p className="field-error">{errors.address}</p>}
                     </label>
-                    <p className="puja-form__note donation-address-note">{addressRequired ? 'Donations over $100 require address, city, state, and ZIP code.' : 'Address details are optional for donations of $100 or less.'}</p>
                     {[
                       ['city', 'City', 'address-level2'],
                       ['state', 'State', 'address-level1'],

@@ -295,7 +295,7 @@ export default function Pujas() {
           </p>
           <button type="button" className="btn btn--primary donation-link" onClick={openDonate}>
             <span className="material-symbols-outlined" aria-hidden="true">volunteer_activism</span>
-            Make a Donation
+            General Donation 
           </button>
         </section>
 
