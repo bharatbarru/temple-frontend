@@ -293,10 +293,6 @@ export default function Pujas() {
             Choose the puja you wish to offer, and
             complete the request in a few steps.
           </p>
-          <button type="button" className="btn btn--primary donation-link" onClick={openDonate}>
-            <span className="material-symbols-outlined" aria-hidden="true">volunteer_activism</span>
-            General Donation 
-          </button>
         </section>
 
         {status === 'loading' && (
@@ -342,6 +338,23 @@ export default function Pujas() {
                 {filtered.length} {filtered.length === 1 ? 'puja' : 'pujas'}
               </p>
             </div>
+
+            <article className="donation-card" onClick={openDonate} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDonate() } }}>
+              <div className="donation-card__body">
+                <h2 className="donation-card__title">General Donation</h2>
+                <p className="donation-card__desc">
+                  Support the temple with a contribution of any amount
+                </p>
+              </div>
+              <button
+                type="button"
+                className="donation-card__btn"
+                onClick={(e) => { e.stopPropagation(); openDonate() }}
+                aria-label="Make a general donation"
+              >
+                Donate
+              </button>
+            </article>
 
             {filtered.length > 0 ? (
               <div className="puja-grid">
