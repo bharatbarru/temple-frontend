@@ -69,6 +69,24 @@ export function CartProvider({ children }) {
 
     const clearCart = () => setItems([])
 
+    const replaceWithItem = (puja, location) => {
+      const amount = location === 'home' ? puja.home_amount : puja.temple_amount
+      if (!hasAmount(amount)) return { ok: false, reason: 'no-amount' }
+      setItems([
+        {
+          key: `${puja.id}-${location}`,
+          id: puja.id,
+          name: puja.name,
+          location,
+          amount,
+          home_amount: puja.home_amount ?? 0,
+          temple_amount: puja.temple_amount ?? 0,
+          quantity: 1,
+        },
+      ])
+      return { ok: true }
+    }
+
     const count = items.reduce((sum, item) => sum + item.quantity, 0)
     const total = items.reduce((sum, item) => sum + item.amount * item.quantity, 0)
 
@@ -86,6 +104,7 @@ export function CartProvider({ children }) {
       addItem,
       removeItem,
       clearCart,
+      replaceWithItem,
     }
   }, [items])
 
