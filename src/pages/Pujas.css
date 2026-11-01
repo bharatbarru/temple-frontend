@@ -746,6 +746,7 @@
    Responsive
    ============================================================ */
 
+
 @media (max-width: 560px) {
   .pujas-toolbar {
     flex-direction: column;

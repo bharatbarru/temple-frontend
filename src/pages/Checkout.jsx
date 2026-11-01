@@ -267,6 +267,7 @@ export default function Checkout() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [copiedId, setCopiedId] = useState(null)
 
   const empty = count === 0
   const locationMixed = bookingLocation === 'mixed'
@@ -869,6 +870,39 @@ export default function Checkout() {
             )}
           </section>
         </div>
+
+        {!empty && (
+          <footer className="share-links">
+            <h3 className="share-links__title">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="share-links__icon">
+                <path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <path d="M11.5 8.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Share this puja
+            </h3>
+            <ul className="share-links__list">
+              {items.map((item) => {
+                const url = `${window.location.origin}/book/${item.id}`
+                return (
+                  <li key={item.key} className="share-links__item">
+                    <span className="share-links__name">{item.name}</span>
+                    <button
+                      type="button"
+                      className="share-links__copy"
+                      onClick={() => {
+                        navigator.clipboard.writeText(url)
+                        setCopiedId(item.id)
+                        setTimeout(() => setCopiedId((prev) => prev === item.id ? null : prev), 1800)
+                      }}
+                    >
+                      {copiedId === item.id ? 'Copied!' : 'Copy Link'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </footer>
+        )}
       </main>
     </div>
   )
