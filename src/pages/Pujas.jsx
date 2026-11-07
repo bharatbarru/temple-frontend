@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import VolunteerActivismOutlinedIcon from '@mui/icons-material/VolunteerActivismOutlined'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { formatAmount, getPujasUrl, hasAmount } from '../api'
 import { useCart } from '../cart'
 import { Diamond, Logo, Ornament } from '../components/Brand'
@@ -147,11 +146,19 @@ function CardSkeleton() {
 }
 
 export default function Pujas() {
+  const navigate = useNavigate()
   const { addItem, removeItem, items, count } = useCart()
   const [toolbarRef, toolbarShown] = useReveal()
 
   const [modalMessage, setModalMessage] = useState('')
   const modalCloseRef = useRef(null)
+
+  // The donation amount is collected here rather than on /donate so the
+  // offering figure is settled before the form page is ever reached.
+  const [donateOpen, setDonateOpen] = useState(false)
+  const [donateAmount, setDonateAmount] = useState('')
+  const [donateError, setDonateError] = useState('')
+  const donateInputRef = useRef(null)
 
   const [pujas, setPujas] = useState([])
   const [status, setStatus] = useState('loading')
@@ -212,6 +219,41 @@ export default function Pujas() {
     return () => window.removeEventListener('keydown', onKey)
   }, [modalMessage])
 
+  useEffect(() => {
+    if (!donateOpen) return undefined
+    donateInputRef.current?.focus()
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeDonate()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [donateOpen])
+
+  function openDonate() {
+    setDonateAmount('')
+    setDonateError('')
+    setDonateOpen(true)
+  }
+
+  function closeDonate() {
+    setDonateOpen(false)
+    setDonateError('')
+  }
+
+  // Only a positive figure opens the checkout page; /donate reads it from
+  // router state and starts with the form already unlocked.
+  function submitDonate(event) {
+    event.preventDefault()
+    const value = Number(donateAmount)
+    if (!donateAmount.trim() || !Number.isFinite(value) || value <= 0) {
+      setDonateError('Enter a donation amount to continue')
+      donateInputRef.current?.focus()
+      return
+    }
+    setDonateOpen(false)
+    navigate('/donate', { state: { amount: donateAmount.trim() } })
+  }
+
   function handleAdd(puja, location) {
     const res = addItem(puja, location)
     if (res?.ok) return true
@@ -245,16 +287,12 @@ export default function Pujas() {
 
       <main className="pujas-main">
         <section className="pujas-hero">
-          <h1 className="pujas-hero__title">Sankalpa &amp; Pooja Payments</h1>
+          <h1 className="pujas-hero__title">Sankalpa &amp; Temple Pooja Payments Online</h1>
           <Ornament />
           <p className="pujas-hero__lede">
-            Choose the puja you wish to offer, pick a date that suits you, and
+            Choose the puja you wish to offer, and
             complete the request in a few steps.
           </p>
-          <Link to="/donate" className="btn btn--primary donation-link">
-            <VolunteerActivismOutlinedIcon aria-hidden="true" />
-            <span>Make A Donation</span>
-          </Link>
         </section>
 
         {status === 'loading' && (
@@ -300,6 +338,23 @@ export default function Pujas() {
                 {filtered.length} {filtered.length === 1 ? 'puja' : 'pujas'}
               </p>
             </div>
+
+            <article className="donation-card" onClick={openDonate} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDonate() } }}>
+              <div className="donation-card__body">
+                <h2 className="donation-card__title">General Donation</h2>
+                <p className="donation-card__desc">
+                  Support the temple with a contribution of any amount
+                </p>
+              </div>
+              <button
+                type="button"
+                className="donation-card__btn"
+                onClick={(e) => { e.stopPropagation(); openDonate() }}
+                aria-label="Make a general donation"
+              >
+                Donate
+              </button>
+            </article>
 
             {filtered.length > 0 ? (
               <div className="puja-grid">
@@ -364,6 +419,63 @@ export default function Pujas() {
               Understood
             </button>
           </div>
+        </div>
+      )}
+
+      {donateOpen && (
+        <div
+          className="modal__scrim"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="donate-modal-title"
+          onClick={closeDonate}
+        >
+          <form
+            className="modal modal--donate"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submitDonate}
+            noValidate
+          >
+            <Diamond className="modal__mark" />
+            <h2 id="donate-modal-title" className="modal__message">
+              How much would you like to offer?
+            </h2>
+
+            <label className={`donate-entry ${donateError ? 'has-error' : ''}`}>
+              <span className="visually-hidden">Donation amount in dollars</span>
+              <span className="donate-entry__currency" aria-hidden="true">$</span>
+              <input
+                ref={donateInputRef}
+                value={donateAmount}
+                onChange={(e) => {
+                  setDonateAmount(
+                    e.target.value.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1'),
+                  )
+                  setDonateError('')
+                }}
+                placeholder="0"
+                inputMode="decimal"
+                autoComplete="off"
+                maxLength={9}
+                size={Math.max(1, donateAmount.length)}
+                aria-invalid={donateError ? 'true' : undefined}
+              />
+            </label>
+            {donateError && <p className="field-error" role="alert">{donateError}</p>}
+
+            <p className="donate-entry__note">
+              You will confirm your details and pay on the next step.
+            </p>
+
+            <div className="modal__actions">
+              <button type="button" className="btn btn--ghost" onClick={closeDonate}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn--primary">
+                Continue
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

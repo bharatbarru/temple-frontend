@@ -3,8 +3,8 @@ import {
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from '@paypal/react-paypal-js'
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   buildGeneralDonationPayload,
   buildPaypalPaymentPayload,
@@ -31,6 +31,9 @@ const INITIAL_FORM = {
   amount: '',
   agree: false,
 }
+
+const amountLike = (value) =>
+  String(value ?? '').replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1').slice(0, 9)
 
 const digitsOf = (value) => value.replace(/\D/g, '')
 const nameLike = (value) => value.replace(/[^\p{L}\p{M}\s'.-]/gu, '').replace(/\s{2,}/g, ' ')
@@ -116,15 +119,65 @@ function PaypalDonation({ amount, email, donationPayload, onPaid, onError }) {
 
 export default function GeneralDonation() {
   const navigate = useNavigate()
-  const [form, setForm] = useState(INITIAL_FORM)
+  const location = useLocation()
+  // The amount is normally collected by the prompt on /pujas and handed over in
+  // router state; landing here directly just leaves the field empty and locked.
+  const [form, setForm] = useState(() => ({
+    ...INITIAL_FORM,
+    amount: amountLike(location.state?.amount),
+  }))
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
   const [pending, setPending] = useState(null)
   const [successId, setSuccessId] = useState('')
+  const [showAmountPrompt, setShowAmountPrompt] = useState(false)
+  const amountRef = useRef(null)
   const paypalClientId = getPaypalClientId()
 
   const amount = Number(form.amount)
   const addressRequired = amount > 100
+
+  // The offering amount drives everything else on this page (address becomes
+  // mandatory over $100, PayPal needs a figure), so the rest of the form stays
+  // locked until it is given.
+  const amountEntered = Number.isFinite(amount) && amount > 0
+
+  // The address block only exists above $100. Drop anything typed there if the
+  // amount falls back under, so the payload never carries values the donor can
+  // no longer see or edit.
+  useEffect(() => {
+    if (addressRequired) return
+    setForm((previous) =>
+      previous.address || previous.city || previous.state || previous.pincode
+        ? { ...previous, address: '', city: '', state: '', pincode: '' }
+        : previous,
+    )
+  }, [addressRequired])
+
+  const closeAmountPrompt = () => {
+    setShowAmountPrompt(false)
+    window.requestAnimationFrame(() => amountRef.current?.focus())
+  }
+
+  // Locked inputs stay focusable on purpose: a disabled input swallows the
+  // click, and we need that click to explain itself.
+  const lockProps = amountEntered
+    ? {}
+    : {
+        readOnly: true,
+        'aria-disabled': 'true',
+        onMouseDown: (event) => {
+          event.preventDefault()
+          setShowAmountPrompt(true)
+        },
+        onFocus: (event) => {
+          event.target.blur()
+          setShowAmountPrompt(true)
+        },
+        onKeyDown: (event) => {
+          if (event.key !== 'Tab') event.preventDefault()
+        },
+      }
 
   const onChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -133,7 +186,7 @@ export default function GeneralDonation() {
     if (name === 'mobile') nextValue = formatPhone(value)
     if (name === 'pincode') nextValue = formatZip(value)
     if (name === 'email') nextValue = value.replace(/\s/g, '')
-    if (name === 'amount') nextValue = value.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1')
+    if (name === 'amount') nextValue = amountLike(value)
     setForm((previous) => ({ ...previous, [name]: nextValue }))
     setErrors((previous) => (previous[name] ? { ...previous, [name]: undefined } : previous))
     setSubmitError('')
@@ -164,6 +217,10 @@ export default function GeneralDonation() {
 
   const onSubmit = (event) => {
     event.preventDefault()
+    if (!amountEntered) {
+      setShowAmountPrompt(true)
+      return
+    }
     if (!validate()) return
     setPending({ payload: buildGeneralDonationPayload(form, amount), amount })
   }
@@ -207,8 +264,38 @@ export default function GeneralDonation() {
         <div className="checkout-layout donation-layout">
           <section className="checkout-summary donation-summary">
             <h2>Your offering</h2>
-            <p className="donation-summary__amount">{formatMoney(amount)}</p>
-            <p className="donation-summary__note">Address details are needed for donations over $100.</p>
+            {pending ? (
+              // Once the PayPal order is priced, the figure is fixed. Editing it
+              // here would drift from what is actually being charged.
+              <p className="donation-summary__amount">{formatMoney(pending.amount)}</p>
+            ) : (
+              <>
+                <label className={`donation-summary__field ${errors.amount ? 'has-error' : ''}`}>
+                  <span className="visually-hidden">Donation amount</span>
+                  <span className="donation-summary__entry">
+                    <span className="donation-summary__currency" aria-hidden="true">$</span>
+                    <input
+                      ref={amountRef}
+                      name="amount"
+                      value={form.amount}
+                      onChange={onChange}
+                      placeholder="0"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      maxLength={9}
+                      size={Math.max(1, form.amount.length)}
+                      aria-describedby="donation-amount-help"
+                    />
+                  </span>
+                </label>
+                {errors.amount && <p className="field-error donation-summary__error">{errors.amount}</p>}
+              </>
+            )}
+            <p className="donation-summary__note" id="donation-amount-help">
+              {pending
+                ? 'Complete the PayPal payment to finish your donation.'
+                : 'Enter your offering amount to unlock the form. Address details are needed for donations over $100.'}
+            </p>
           </section>
 
           <section className="checkout-form-wrap" aria-labelledby="donation-form-heading">
@@ -231,58 +318,92 @@ export default function GeneralDonation() {
               <>
                 <h2 id="donation-form-heading">Donation details</h2>
                 <form className="puja-form" onSubmit={onSubmit} noValidate>
-                  <div className="puja-form__grid">
+                  <div className={`puja-form__grid${amountEntered ? '' : ' donation-grid--locked'}`}>
                     {[
                       ['firstName', 'First Name *', 'given-name'],
                       ['lastName', 'Last Name *', 'family-name'],
                     ].map(([name, placeholder, autoComplete]) => (
                       <label key={name} className={errors[name] ? 'has-error' : ''}>
                         <span className="visually-hidden">{placeholder}</span>
-                        <input name={name} value={form[name]} onChange={onChange} placeholder={placeholder} autoComplete={autoComplete} maxLength={40} />
+                        <input name={name} value={form[name]} onChange={onChange} placeholder={placeholder} autoComplete={autoComplete} maxLength={40} {...lockProps} />
                         {errors[name] && <p className="field-error">{errors[name]}</p>}
                       </label>
                     ))}
                     <label className={errors.mobile ? 'has-error' : ''}>
                       <span className="visually-hidden">Mobile</span>
-                      <span className="field-phone"><span className="field-phone__code" aria-hidden="true">+1</span><input type="tel" name="mobile" value={form.mobile} onChange={onChange} placeholder="(555) 123-4567 *" autoComplete="tel-national" maxLength={14} /></span>
+                      <span className="field-phone"><span className="field-phone__code" aria-hidden="true">+1</span><input type="tel" name="mobile" value={form.mobile} onChange={onChange} placeholder="(555) 123-4567 *" autoComplete="tel-national" maxLength={14} {...lockProps} /></span>
                       {errors.mobile && <p className="field-error">{errors.mobile}</p>}
                     </label>
                     <label className={errors.email ? 'has-error' : ''}>
                       <span className="visually-hidden">Email</span>
-                      <input type="email" name="email" value={form.email} onChange={onChange} placeholder="Email *" autoComplete="email" maxLength={100} />
+                      <input type="email" name="email" value={form.email} onChange={onChange} placeholder="Email *" autoComplete="email" maxLength={100} {...lockProps} />
                       {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
-                    <label className={`donation-amount ${errors.amount ? 'has-error' : ''}`}>
-                      <span className="visually-hidden">Donation amount</span>
-                      <span className="donation-amount__input"><span aria-hidden="true">$</span><input type="text" name="amount" value={form.amount} onChange={onChange} placeholder="Donation amount *" inputMode="decimal" /></span>
-                      {errors.amount && <p className="field-error">{errors.amount}</p>}
-                    </label>
-                    <label className={`puja-form__full ${errors.address ? 'has-error' : ''}`}>
-                      <span className="visually-hidden">Address</span>
-                      <input name="address" value={form.address} onChange={onChange} placeholder={`Address${addressRequired ? ' *' : ''}`} autoComplete="street-address" maxLength={150} />
-                      {errors.address && <p className="field-error">{errors.address}</p>}
-                    </label>
-                    <p className="puja-form__note donation-address-note">{addressRequired ? 'Donations over $100 require address, city, state, and ZIP code.' : 'Address details are optional for donations of $100 or less.'}</p>
-                    {[
-                      ['city', 'City', 'address-level2'],
-                      ['state', 'State', 'address-level1'],
-                      ['pincode', 'ZIP Code', 'postal-code'],
-                    ].map(([name, placeholder, autoComplete]) => (
-                      <label key={name} className={errors[name] ? 'has-error' : ''}>
-                        <span className="visually-hidden">{placeholder}</span>
-                        <input name={name} value={form[name]} onChange={onChange} placeholder={`${placeholder}${addressRequired ? ' *' : ''}`} autoComplete={autoComplete} maxLength={10} />
-                        {errors[name] && <p className="field-error">{errors[name]}</p>}
-                      </label>
-                    ))}
+                    {addressRequired && (
+                      <>
+                        
+                        <label className={`puja-form__full ${errors.address ? 'has-error' : ''}`}>
+                          <span className="visually-hidden">Address</span>
+                          <input name="address" value={form.address} onChange={onChange} placeholder="Address *" autoComplete="street-address" maxLength={150} {...lockProps} />
+                          {errors.address && <p className="field-error">{errors.address}</p>}
+                        </label>
+                        {[
+                          ['city', 'City', 'address-level2'],
+                          ['state', 'State', 'address-level1'],
+                          ['pincode', 'ZIP Code', 'postal-code'],
+                        ].map(([name, placeholder, autoComplete]) => (
+                          <label key={name} className={errors[name] ? 'has-error' : ''}>
+                            <span className="visually-hidden">{placeholder}</span>
+                            <input name={name} value={form[name]} onChange={onChange} placeholder={`${placeholder} *`} autoComplete={autoComplete} maxLength={10} {...lockProps} />
+                            {errors[name] && <p className="field-error">{errors[name]}</p>}
+                          </label>
+                        ))}
+                      </>
+                    )}
                   </div>
-                  <label className={`puja-form__agree ${errors.agree ? 'has-error' : ''}`}>
-                    <input type="checkbox" name="agree" checked={form.agree} onChange={onChange} />
+                  <label
+                    className={`puja-form__agree ${errors.agree ? 'has-error' : ''}${amountEntered ? '' : ' donation-grid--locked'}`}
+                    onClick={(event) => {
+                      if (amountEntered) return
+                      event.preventDefault()
+                      setShowAmountPrompt(true)
+                    }}
+                  >
+                    <input type="checkbox" name="agree" checked={form.agree} onChange={onChange} aria-disabled={amountEntered ? undefined : 'true'} />
                     <span>I agree to terms and conditions and confirm that the payment is directly made to Hindu Temple Omaha.</span>
                   </label>
                   {errors.agree && <p className="field-error">{errors.agree}</p>}
                   {errors.paypal && <p className="field-error">{errors.paypal}</p>}
                   {submitError && <p className="field-error" role="alert">{submitError}</p>}
                   <button type="submit" className="btn btn--primary puja-form__submit">Continue to PayPal</button>
+
+                  {showAmountPrompt && (
+                    <div
+                      className="terms-overlay"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="amount-prompt-title"
+                      onClick={closeAmountPrompt}
+                    >
+                      <div className="terms-panel" onClick={(event) => event.stopPropagation()}>
+                        <h3 id="amount-prompt-title" className="terms-panel__title">
+                          Please enter the amount first
+                        </h3>
+                        <Ornament />
+                        <div className="terms-panel__body">
+                          <p>
+                            Enter your offering amount in the <strong>Your offering</strong> box
+                            before filling in your details.
+                          </p>
+                        </div>
+                        <div className="terms-panel__actions">
+                          <button type="button" className="btn btn--primary" onClick={closeAmountPrompt}>
+                            Enter amount
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </form>
               </>
             )}

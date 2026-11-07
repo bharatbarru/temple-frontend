@@ -267,11 +267,26 @@ export default function Checkout() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [copiedId, setCopiedId] = useState(null)
 
   const empty = count === 0
   const locationMixed = bookingLocation === 'mixed'
+  // Address details are only collected once the order passes $100, the same
+  // threshold the general donation page uses.
+  const addressRequired = total > 100
   const paypalClientId = getPaypalClientId()
   const paypalCurrency = getPaypalCurrency()
+
+  // Nothing typed into the address block should survive it being hidden, or
+  // the request would carry values the devotee can no longer see or edit.
+  useEffect(() => {
+    if (addressRequired) return
+    setForm((previous) =>
+      previous.address || previous.country || previous.state || previous.city || previous.pincode
+        ? { ...previous, address: '', country: '', state: '', city: '', pincode: '' }
+        : previous,
+    )
+  }, [addressRequired])
 
   // Both fields are read-only mirrors of the clock, so keep them ticking
   // rather than freezing whatever the moment of mount happened to be.
@@ -348,13 +363,15 @@ export default function Checkout() {
 
     if (!form.email.trim()) next.email = 'Required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email)) next.email = 'Enter a valid email address'
-    if (!form.address.trim()) next.address = 'Required'
-    if (!form.country.trim()) next.country = 'Required'
-    if (!form.state.trim()) next.state = 'Required'
-    if (!form.city.trim()) next.city = 'Required'
-    if (!form.pincode.trim()) next.pincode = 'Required'
-    else if (![5, 9].includes(digitsOf(form.pincode).length)) {
-      next.pincode = 'Enter a 5 digit ZIP code'
+    if (addressRequired) {
+      if (!form.address.trim()) next.address = 'Required'
+      if (!form.country.trim()) next.country = 'Required'
+      if (!form.state.trim()) next.state = 'Required'
+      if (!form.city.trim()) next.city = 'Required'
+      if (!form.pincode.trim()) next.pincode = 'Required'
+      else if (![5, 9].includes(digitsOf(form.pincode).length)) {
+        next.pincode = 'Enter a 5 digit ZIP code'
+      }
     }
     if (!form.dateOfPuja) next.dateOfPuja = 'Required'
     if (!form.timeOfPuja) next.timeOfPuja = 'Required'
@@ -661,82 +678,89 @@ export default function Checkout() {
                       />
                       {errors.email && <p className="field-error">{errors.email}</p>}
                     </label>
-                    <label className={`puja-form__full${errors.address ? ' has-error' : ''}`}>
-                      <span className="visually-hidden">Address</span>
-                      {/* Deliberately unfiltered: street addresses need digits */}
-                      <input
-                        name="address"
-                        value={form.address}
-                        onChange={onChange}
-                        placeholder="Address *"
-                        required
-                        autoComplete="street-address"
-                        autoCapitalize="words"
-                        enterKeyHint="next"
-                        maxLength={120}
-                      />
-                      {errors.address && <p className="field-error">{errors.address}</p>}
-                    </label>
-                    <label className={errors.country ? 'has-error' : ''}>
-                      <span className="visually-hidden">Country</span>
-                      <input
-                        name="country"
-                        value={form.country}
-                        onChange={onChange}
-                        placeholder="Country *"
-                        required
-                        autoComplete="country-name"
-                        autoCapitalize="words"
-                        enterKeyHint="next"
-                        maxLength={56}
-                      />
-                      {errors.country && <p className="field-error">{errors.country}</p>}
-                    </label>
-                    <label className={errors.state ? 'has-error' : ''}>
-                      <span className="visually-hidden">State</span>
-                      <input
-                        name="state"
-                        value={form.state}
-                        onChange={onChange}
-                        placeholder="State *"
-                        required
-                        autoComplete="address-level1"
-                        autoCapitalize="words"
-                        enterKeyHint="next"
-                        maxLength={40}
-                      />
-                      {errors.state && <p className="field-error">{errors.state}</p>}
-                    </label>
-                    <label className={errors.city ? 'has-error' : ''}>
-                      <span className="visually-hidden">City</span>
-                      <input
-                        name="city"
-                        value={form.city}
-                        onChange={onChange}
-                        placeholder="City *"
-                        required
-                        autoComplete="address-level2"
-                        autoCapitalize="words"
-                        enterKeyHint="next"
-                        maxLength={58}
-                      />
-                      {errors.city && <p className="field-error">{errors.city}</p>}
-                    </label>
-                    <label className={errors.pincode ? 'has-error' : ''}>
-                      <span className="visually-hidden">ZIP Code</span>
-                      <input
-                        name="pincode"
-                        value={form.pincode}
-                        onChange={onChange}
-                        placeholder="ZIP Code *"
-                        required
-                        autoComplete="postal-code"
-                        inputMode="numeric"
-                        enterKeyHint="next"
-                        maxLength={10}
-                      />
-                      {errors.pincode && <p className="field-error">{errors.pincode}</p>}
-                    </label>
+                    {addressRequired && (
+                      <>
+                        <p className="field-hint puja-form__full">
+                          Requests over $100 need your address, country, state, city, and ZIP code.
+                        </p>
+                        <label className={`puja-form__full${errors.address ? ' has-error' : ''}`}>
+                          <span className="visually-hidden">Address</span>
+                          {/* Deliberately unfiltered: street addresses need digits */}
+                          <input
+                            name="address"
+                            value={form.address}
+                            onChange={onChange}
+                            placeholder="Address *"
+                            required
+                            autoComplete="street-address"
+                            autoCapitalize="words"
+                            enterKeyHint="next"
+                            maxLength={120}
+                          />
+                          {errors.address && <p className="field-error">{errors.address}</p>}
+                        </label>
+                        <label className={errors.country ? 'has-error' : ''}>
+                          <span className="visually-hidden">Country</span>
+                          <input
+                            name="country"
+                            value={form.country}
+                            onChange={onChange}
+                            placeholder="Country *"
+                            required
+                            autoComplete="country-name"
+                            autoCapitalize="words"
+                            enterKeyHint="next"
+                            maxLength={56}
+                          />
+                          {errors.country && <p className="field-error">{errors.country}</p>}
+                        </label>
+                        <label className={errors.state ? 'has-error' : ''}>
+                          <span className="visually-hidden">State</span>
+                          <input
+                            name="state"
+                            value={form.state}
+                            onChange={onChange}
+                            placeholder="State *"
+                            required
+                            autoComplete="address-level1"
+                            autoCapitalize="words"
+                            enterKeyHint="next"
+                            maxLength={40}
+                          />
+                          {errors.state && <p className="field-error">{errors.state}</p>}
+                        </label>
+                        <label className={errors.city ? 'has-error' : ''}>
+                          <span className="visually-hidden">City</span>
+                          <input
+                            name="city"
+                            value={form.city}
+                            onChange={onChange}
+                            placeholder="City *"
+                            required
+                            autoComplete="address-level2"
+                            autoCapitalize="words"
+                            enterKeyHint="next"
+                            maxLength={58}
+                          />
+                          {errors.city && <p className="field-error">{errors.city}</p>}
+                        </label>
+                        <label className={errors.pincode ? 'has-error' : ''}>
+                          <span className="visually-hidden">ZIP Code</span>
+                          <input
+                            name="pincode"
+                            value={form.pincode}
+                            onChange={onChange}
+                            placeholder="ZIP Code *"
+                            required
+                            autoComplete="postal-code"
+                            inputMode="numeric"
+                            enterKeyHint="next"
+                            maxLength={10}
+                          />
+                          {errors.pincode && <p className="field-error">{errors.pincode}</p>}
+                        </label>
+                      </>
+                    )}
                   </div>
 
                   <p className="puja-form__note">
@@ -782,7 +806,7 @@ export default function Checkout() {
                       onChange={onChange}
                       readOnly={!form.agree}
                     />
-                    <span>I Agree to the terms and conditions</span>
+                    <span>I agree to terms and conditions and confirm that the payment is directly made to Hindu Temple Omaha.</span>
                   </label>
                   {errors.agree && <p className="field-error">{errors.agree}</p>}
 
@@ -797,6 +821,9 @@ export default function Checkout() {
                       <div className="terms-panel" onClick={(e) => e.stopPropagation()}>
                         <h3 id="terms-title" className="terms-panel__title">Terms and Conditions</h3>
                         <Ornament />
+                        <div className="terms-panel__body">
+                          <p>I agree to terms and conditions and confirm that the payment is directly made to Hindu Temple Omaha.</p>
+                        </div>
                         <div className="terms-panel__actions">
                           <button
                             type="button"
@@ -843,6 +870,39 @@ export default function Checkout() {
             )}
           </section>
         </div>
+
+        {!empty && (
+          <footer className="share-links">
+            <h3 className="share-links__title">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="share-links__icon">
+                <path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <path d="M11.5 8.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Share this puja
+            </h3>
+            <ul className="share-links__list">
+              {items.map((item) => {
+                const url = `${window.location.origin}/book/${item.id}`
+                return (
+                  <li key={item.key} className="share-links__item">
+                    <span className="share-links__name">{item.name}</span>
+                    <button
+                      type="button"
+                      className="share-links__copy"
+                      onClick={() => {
+                        navigator.clipboard.writeText(url)
+                        setCopiedId(item.id)
+                        setTimeout(() => setCopiedId((prev) => prev === item.id ? null : prev), 1800)
+                      }}
+                    >
+                      {copiedId === item.id ? 'Copied!' : 'Copy Link'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </footer>
+        )}
       </main>
     </div>
   )
