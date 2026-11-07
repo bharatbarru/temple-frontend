@@ -112,11 +112,6 @@
   text-wrap: pretty;
 }
 
-<<<<<<< HEAD
-.donation-link {
-  gap: 0.5rem;
-  margin-top: 0.3rem;
-=======
 /* ============================================================
    General Donation card · sits above the puja grid
    ============================================================ */
@@ -206,7 +201,6 @@
   .donation-card__desc {
     display: none;
   }
->>>>>>> 3089e2821f31994db8302b76a01abab00c7a35ad
 }
 
 .donation-link svg {
